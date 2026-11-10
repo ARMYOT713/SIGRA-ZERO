@@ -16,7 +16,6 @@ import { iconoNap, iconoPoste, iconoCliente } from '../utils/mapIcon';
 import { calcularDistancia } from '../utils/haversine';
 import { obtenerDispositivosMapa } from '../services/api';
 
-mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
 
 const { BaseLayer } = LayersControl;
 
@@ -616,13 +615,6 @@ function MapaRed() {
                 />
               </BaseLayer>
 
-              <BaseLayer name="Mapbox Satélite HD">
-                <TileLayer
-                  maxNativeZoom={18}
-                  maxZoom={20}
-                  attribution='&copy; <a href="https://www.mapbox.com/">Mapbox</a>'
-                />
-              </BaseLayer>
 
               <BaseLayer name="Google Maps Calles">
                 <TileLayer
