@@ -16,6 +16,8 @@ import { iconoNap, iconoPoste, iconoCliente } from '../utils/mapIcon';
 import { calcularDistancia } from '../utils/haversine';
 import { obtenerDispositivosMapa } from '../services/api';
 
+mapboxgl.accessToken = import.meta.env.VITE_MAPBOX_TOKEN;
+
 const { BaseLayer } = LayersControl;
 
 const iconoGpsUsuario = L.icon({
@@ -616,7 +618,6 @@ function MapaRed() {
 
               <BaseLayer name="Mapbox Satélite HD">
                 <TileLayer
-                  url="https://api.mapbox.com/styles/v1/mapbox/satellite-streets-v12/tiles/{z}/{x}/{y}@2x?access_token=pk.eyJ1IjoiY2FybXluLTAiLCJhIjoiY212cjNzYjhxMDZieDJ5cHhsYzR5NmFobCJ9.37W0NaBzcb7wMd1B_puYeg"
                   maxNativeZoom={18}
                   maxZoom={20}
                   attribution='&copy; <a href="https://www.mapbox.com/">Mapbox</a>'
