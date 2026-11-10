@@ -1,0 +1,143 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+model Postes {
+  poste_id          Int                  @id @default(autoincrement())
+  codigo            String               @db.VarChar(100)
+  latitud           Decimal              @db.Decimal(10, 6)
+  longitud          Decimal              @db.Decimal(10, 6)
+  fecha_instalacion DateTime             @db.Date
+  archivo_kmz       String?              @db.VarChar(100)
+  estado            EstatusDispositivoEnum @default(ACTIVO)
+  naps              NAP[]
+  reportes          Reportes[]
+  localidad         LocalidadEnum?
+
+  @@map("postes")
+}
+
+model NAP {
+  id_nap            Int                  @id @default(autoincrement())
+  poste_id          Int?
+  codigo_nap        String               @db.VarChar(100)
+  no_serie          String?              @db.VarChar(100)
+  potencia          Decimal?             @db.Decimal(5, 2)
+  latitud           Decimal              @db.Decimal(10, 6)
+  longitud          Decimal              @db.Decimal(10, 6)
+  capacidad_puertos Int?                 @db.SmallInt
+  puertos_usados    Int?                 @db.SmallInt
+  archivo_kmz       String?              @db.VarChar(100)
+  estado            EstatusDispositivoEnum @default(ACTIVO)
+  poste             Postes?              @relation(fields: [poste_id], references: [poste_id])
+  localidad         LocalidadEnum?
+  
+  clientes          clientes[]
+  reportes          Reportes[]
+
+  @@map("nap")
+}
+
+model clientes {
+  id_cliente        Int                  @id @default(autoincrement())
+  nombre_completo   String?              @db.VarChar(100)
+  cliente_ref       String?              @db.VarChar(150)
+  contacto          String?              @db.VarChar(15)
+  estatus           Boolean              @default(true)
+  estado            EstatusDispositivoEnum @default(ACTIVO)
+  latitud           Decimal?             @db.Decimal(10, 6)
+  longitud          Decimal?             @db.Decimal(10, 6)
+  fecha_instalacion DateTime?            @db.Date
+  distancia_nap     Decimal?             @db.Decimal(8, 2)
+  id_nap            Int?
+  puerto_asignado   Int?                 @db.SmallInt
+  
+  nap               NAP?                 @relation(fields: [id_nap], references: [id_nap])
+  localidad         LocalidadEnum?
+  onus              oNUS[]    
+  reportes          Reportes[]
+
+  @@map("clientes")
+}
+
+model oNUS {
+  id_onus           Int                  @id @default(autoincrement())
+  codigo            String               @db.VarChar(100)
+  no_serie          String?              @db.VarChar(100)
+  estado            EstatusDispositivoEnum @default(ACTIVO)
+  id_cliente        Int?      
+  cliente           clientes?            @relation(fields: [id_cliente], references: [id_cliente])
+  reportes          Reportes[]
+  localidad         LocalidadEnum?
+
+  @@map("onus")
+}
+
+model Reportes {
+  id_reporte       Int       @id @default(autoincrement())
+  tipo_elemento    String?   @db.VarChar(50)
+  id_cliente       Int?
+  id_onus          Int?
+  id_nap           Int?
+  id_poste         Int?
+  falla_presentada String    @db.VarChar(150)
+  prioridad        String    @default("Normal") @db.VarChar(50)
+  descripcion      String    @db.VarChar(350)
+  tecnico_asignado String?   @db.VarChar(100)
+  estatus          Boolean   @default(true)
+  fecha_reporte    DateTime  @default(now()) @db.Timestamp(6)
+  fecha_resolucion DateTime? @db.Timestamp(6)
+  comentarios_solucion String? @db.VarChar(500)
+  evidencia_foto       String?
+  
+  cliente          clientes? @relation(fields: [id_cliente], references: [id_cliente], onDelete: Cascade)
+  onu              oNUS?     @relation(fields: [id_onus], references: [id_onus], onDelete: Cascade)
+  nap              NAP?      @relation(fields: [id_nap], references: [id_nap], onDelete: Cascade)
+  poste            Postes?   @relation(fields: [id_poste], references: [poste_id], onDelete: Cascade)
+
+  @@map("reportes")
+}
+
+model Usuarios {
+  id_usuario           Int       @id @default(autoincrement())
+  nombre_completo      String    @db.VarChar(100)
+  rol                  RolEnum   @default(SOPORTE_TECNICO)
+  password             String    @db.VarChar(255)
+  correo               String?   @unique @db.VarChar(100)
+  telefono             String?   @db.VarChar(20)
+  resetPasswordToken   String?
+  resetPasswordExpires DateTime?
+
+  @@map("usuarios")
+}
+
+enum RolEnum {
+  ADMINISTRADOR
+  SOPORTE_TECNICO
+}
+
+enum EstatusDispositivoEnum {
+  ACTIVADO
+  DESACTIVADO
+  ACTIVO
+  SUSPENDIDO
+  CANCELADO
+}
+
+enum LocalidadEnum {
+  MX_B1 @map("MX-B1")
+  MX_B2 @map("MX-B2")
+  MX_B3 @map("MX-B3")
+  MX_B4 @map("MX-B4")
+  CM
+  BI
+  BH
+  BM
+  ICJ
+  YDJ
+}
+

@@ -1,0 +1,230 @@
+.resumen-container {
+  padding: 24px 32px;
+  background-color: #f8fafc;
+  height: 100%;
+  box-sizing: border-box;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  font-family: 'Poppins', sans-serif;
+}
+
+.resumen-header {
+  margin-bottom: 4px;
+}
+
+.resumen-header h2 {
+  margin: 0;
+  font-size: 1.6rem;
+  font-weight: 700;
+  color: #0f172a;
+  letter-spacing: 0.5px;
+}
+
+.resumen-header-line {
+  width: 40px;
+  height: 3px;
+  background-color: #16a34a;
+  margin-top: 4px;
+  border-radius: 2px;
+}
+
+.resumen-header p {
+  font-size: 0.85rem;
+  color: #64748b;
+  margin: 6px 0 0 0;
+}
+
+.resumen-error {
+  padding: 10px 14px;
+  background-color: #fee2e2;
+  color: #991b1b;
+  border-radius: 6px;
+  font-size: 0.85rem;
+}
+
+/* FILA HORIZONTAL DE TARJETAS LADO A LADO */
+.kpi-grid-horizontal {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 18px;
+  width: 100%;
+  align-items: stretch; /* Estira todas las tarjetas a la misma altura exacta */
+}
+
+/* TARJETA MÁS LARGA Y ESTÉTICA */
+.kpi-card-extended {
+  background: #ffffff;
+  padding: 24px 20px;
+  border-radius: 16px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.04);
+  border: 1px solid #e2e8f0;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between; /* Distribuye el contenido de arriba a abajo */
+  min-height: 420px; /* Tarjetas más largas como pediste */
+  box-sizing: border-box;
+}
+
+.kpi-card-extended:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 8px 22px rgba(0, 0, 0, 0.08);
+}
+
+.kpi-card-extended.alerta {
+  border-color: #fecaca;
+  border-top: 4px solid #dc2626;
+}
+
+.kpi-header-block {
+  margin-bottom: 8px;
+}
+
+.kpi-title {
+  font-size: 0.92rem;
+  font-weight: 700;
+  color: #334155;
+  letter-spacing: 0.3px;
+}
+
+/* NÚMERO TOTAL ESTILIZADO Y MENOS GRUESO */
+.kpi-main-number {
+  font-size: 2.6rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin-top: 4px;
+  line-height: 1.1;
+}
+
+.kpi-main-number.alerta {
+  color: #dc2626;
+}
+
+/* ESTADOS EN LISTA VERTICAL (MAYÚSCULAS) */
+.kpi-status-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.8rem;
+  font-weight: 700;
+  margin-bottom: 12px;
+  letter-spacing: 0.3px;
+}
+
+.status-column {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.pill-active { color: #16a34a; }
+.pill-inactive { color: #64748b; }
+.pill-warning { color: #d97706; }
+.pill-danger { color: #dc2626; }
+
+.subtext-alerta {
+  color: #dc2626;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.3px;
+}
+
+.kpi-section-divider {
+  height: 1px;
+  background-color: #f1f5f9;
+  margin: 12px 0;
+}
+
+/* DETALLES DE LOCALIDAD */
+.kpi-subcontent {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  margin-top: auto; /* Empuja la sección de localidades hacia la parte baja de la tarjeta */
+}
+
+.kpi-subtitle {
+  font-size: 0.8rem;
+  font-weight: 700;
+  color: #0f172a;
+  margin-bottom: 10px;
+  letter-spacing: 0.2px;
+}
+
+.localidades-scroll-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  max-height: 140px;
+  overflow-y: auto;
+  padding-right: 4px;
+}
+
+.loc-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 0.78rem;
+  color: #475569;
+  padding: 3px 0;
+  border-bottom: 1px dashed #f1f5f9;
+}
+
+.loc-name {
+  word-break: break-word;
+  font-weight: 600;
+}
+
+.loc-count {
+  color: #0f172a;
+  font-weight: 700;
+}
+
+.no-data {
+  font-size: 0.78rem;
+  color: #94a3b8;
+  font-style: italic;
+}
+
+/* LISTA DE SOPORTES EN RESUMEN DE REPORTES */
+.soporte-resumen-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.78rem;
+  padding: 6px 10px;
+  background-color: #fff8f8;
+  border-radius: 6px;
+  border: 1px solid #fecaca;
+  margin-bottom: 4px;
+}
+
+.soporte-tag {
+  color: #1e293b;
+  font-weight: 700;
+  white-space: nowrap;
+}
+
+.cant-pendiente {
+  color: #dc2626;
+  font-weight: 700;
+  white-space: nowrap;
+  margin-left: 6px;
+}
+
+.cant-cero {
+  color: #16a34a;
+  font-weight: 700;
+  white-space: nowrap;
+  margin-left: 6px;
+}
+
+.no-pending-text {
+  color: #16a34a;
+  font-weight: 700;
+  font-size: 0.78rem;
+}
