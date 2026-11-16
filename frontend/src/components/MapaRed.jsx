@@ -67,6 +67,7 @@ const obtenerIconoBaseSegunTipo = (disp) => {
   let iconoBase = iconoCliente;
   if (tipoUpper.includes('POSTE')) iconoBase = iconoPoste;
   else if (tipoUpper.includes('NAP')) iconoBase = iconoNap;
+  else if (tipoUpper.includes('ONU')) iconoBase = iconoOnu;
   return iconoBase;
 };
 

@@ -1,4 +1,4 @@
-// src/components/Dispositivos.jsx
+// src/views/Dispositivos.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
 import { convertirDMSaDecimal } from '../utils/coordenadas';
@@ -221,6 +221,8 @@ function Dispositivos() {
         setPestanaActiva('NAP');
       } else if (filtroUpper === 'CLIENTES') {
         setPestanaActiva('CLIENTES');
+      } else if (filtroUpper === 'ONUS') {
+        setPestanaActiva('ONUS');
       }
     }
   }, [searchParams]);
@@ -281,7 +283,7 @@ function Dispositivos() {
     let tipoParam = "cliente";
     if (tipoStr.includes("nap")) tipoParam = "nap";
     else if (tipoStr.includes("poste")) tipoParam = "poste";
-    else if (tipoStr.includes("onu")) tipoParam = "cliente";
+    else if (tipoStr.includes("onu")) tipoParam = "onu";
 
     const idBuscado = item.realId || item.id || item.poste_id || item.id_nap || item.id_cliente;
     const lat = item.latitud;
@@ -413,7 +415,8 @@ function Dispositivos() {
       if (filtroEstatusDispositivo === 'ACTIVO' && estadoStr !== 'ACTIVO') return false;
       if (filtroEstatusDispositivo === 'SUSPENDIDO' && estadoStr !== 'SUSPENDIDO') return false;
       if (filtroEstatusDispositivo === 'CANCELADO' && estadoStr !== 'CANCELADO') return false;
-      if (filtroEstatusDispositivo === 'DESACTIVADO' && estadoStr !== 'DESACTIVADO') return false;
+      if (filtroEstatusDispositivo === 'MANTENIMIENTO' && estadoStr !== 'MANTENIMIENTO') return false;
+      if (filtroEstatusDispositivo === 'DESACTIVADO' && (estadoStr !== 'DESACTIVADO' && estadoStr !== 'INACTIVO')) return false;
     }
 
     if (!filtroTablaGeneral.trim()) return true;
@@ -497,6 +500,11 @@ function Dispositivos() {
     setNapsSeleccionadasPosteForm(napsInicialesPoste);
 
     const estadoBD = (item.estado || item.estatus || 'ACTIVO').toUpperCase();
+    let estatusNormalizado = 'ACTIVO';
+    if (estadoBD.includes('SUSP')) estatusNormalizado = 'SUSPENDIDO';
+    else if (estadoBD.includes('CANC')) estatusNormalizado = 'CANCELADO';
+    else if (estadoBD.includes('MANT')) estatusNormalizado = 'MANTENIMIENTO';
+    else if (estadoBD.includes('DESACT') || estadoBD.includes('INACT')) estatusNormalizado = 'DESACTIVADO';
 
     setForm({
       tipo: item.tipo,
@@ -513,7 +521,7 @@ function Dispositivos() {
       fecha_instalacion: item.fecha_instalacion ? item.fecha_instalacion.split('T')[0] : new Date().toISOString().split('T')[0],
       latitud: item.latitud !== null && item.latitud !== undefined ? String(item.latitud) : '',
       longitud: item.longitud !== null && item.longitud !== undefined ? String(item.longitud) : '',
-      estado: estadoBD.includes('SUSP') ? 'SUSPENDIDO' : estadoBD.includes('CANC') ? 'CANCELADO' : estadoBD.includes('DESACT') ? 'DESACTIVADO' : 'ACTIVO',
+      estado: estatusNormalizado,
       capacidad_puertos: item.capacidad_puertos ? String(item.capacidad_puertos) : '8',
       puertos_usados: item.puertos_usados !== null && item.puertos_usados !== undefined ? String(item.puertos_usados) : '0',
       napsAsociadas: napsInicialesPoste.map(n => n.realId),
@@ -601,17 +609,19 @@ function Dispositivos() {
     
     } else if (form.tipo === 'ONU') {
      datosAEnviar = {
-    cliente_ref: form.codigo,
-    nombre_completo: form.nombreCliente || form.codigo,
-    contacto: form.serie || '', 
-    localidad: localidadFinal, 
-    estatus: form.estado === 'ACTIVO',
-    estado: form.estado,
-    id_nap: idNapFinal,
-    puerto_asignado: form.puertoAsignado ? Number(form.puertoAsignado) : null,
-    fecha_instalacion: form.fecha_instalacion ? new Date(form.fecha_instalacion).toISOString() : new Date().toISOString(),
-    latitud: form.latitud ? parseFloat(form.latitud) : null,
-    longitud: form.longitud ? parseFloat(form.longitud) : null
+      cliente_ref: form.codigo,
+      nombre_completo: form.nombreCliente || form.codigo,
+      contacto: form.onuSerie || '', 
+      no_serie: form.onuSerie || '',
+      modelo: form.onuModelo || '',
+      localidad: localidadFinal, 
+      estatus: form.estado === 'ACTIVO',
+      estado: form.estado,
+      tipo: 'ONU',
+      es_onu: true,
+      fecha_instalacion: form.fecha_instalacion ? new Date(form.fecha_instalacion).toISOString() : new Date().toISOString(),
+      latitud: form.latitud ? parseFloat(form.latitud) : null,
+      longitud: form.longitud ? parseFloat(form.longitud) : null
     };
 
     } else if (form.tipo === 'Caja NAP') {
@@ -771,7 +781,31 @@ function Dispositivos() {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ fontSize: '0.78rem', fontWeight: '700', color: '#475569' }}>Estatus:</span>
-          {(pestanaActiva === 'NAP' || pestanaActiva === 'POSTES') ? (
+          {pestanaActiva === 'ONUS' ? (
+            [
+              { id: 'TODOS', label: 'TODOS' },
+              { id: 'ACTIVO', label: 'ACTIVO' },
+              { id: 'DESACTIVADO', label: 'DESACTIVADO' },
+              { id: 'MANTENIMIENTO', label: 'MANTENIMIENTO' }
+            ].map((f) => (
+              <button
+                key={f.id}
+                onClick={() => setFiltroEstatusDispositivo(f.id)}
+                style={{
+                  padding: '6px 12px',
+                  borderRadius: '6px',
+                  border: '1px solid #cbd5e1',
+                  backgroundColor: filtroEstatusDispositivo === f.id ? '#0284c7' : '#ffffff',
+                  color: filtroEstatusDispositivo === f.id ? '#ffffff' : '#334155',
+                  fontSize: '0.75rem',
+                  fontWeight: '600',
+                  cursor: 'pointer'
+                }}
+              >
+                {f.label}
+              </button>
+            ))
+          ) : (pestanaActiva === 'NAP' || pestanaActiva === 'POSTES') ? (
             [
               { id: 'TODOS', label: 'TODOS' },
               { id: 'ACTIVO', label: 'ACTIVO' },
@@ -854,6 +888,7 @@ function Dispositivos() {
                 
                 const esSuspendido = estadoStr === 'SUSPENDIDO';
                 const esCancelado = estadoStr === 'CANCELADO';
+                const esMantenimiento = estadoStr === 'MANTENIMIENTO';
                 const esDesactivado = estadoStr === 'DESACTIVADO' || estadoStr === 'INACTIVO';
 
                 let colorTexto = '#16a34a';
@@ -868,9 +903,13 @@ function Dispositivos() {
                   colorTexto = '#dc2626';
                   fondoColor = '#fee2e2';
                   textoEstatus = 'Cancelado';
+                } else if (esMantenimiento) {
+                  colorTexto = '#0284c7';
+                  fondoColor = '#e0f2fe';
+                  textoEstatus = 'Mantenimiento';
                 } else if (esDesactivado) {
-                  colorTexto = '#64748b';
-                  fondoColor = '#f1f5f9';
+                  colorTexto = '#dc2626';
+                  fondoColor = '#fee2e2';
                   textoEstatus = 'Desactivado';
                 }
 
@@ -1071,7 +1110,17 @@ function Dispositivos() {
 
               <div>
                 <label style={{ fontSize: '0.75rem', color: '#64748b', display: 'block', marginBottom: '4px' }}>Estatus Operativo:</label>
-                {(form.tipo === 'Caja NAP' || form.tipo === 'Poste') ? (
+                {form.tipo === 'ONU' ? (
+                  <select 
+                    value={form.estado}
+                    onChange={(e) => setForm({...form, estado: e.target.value})}
+                    style={{ width: '100%', padding: '9px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#fff', fontWeight: '600' }}
+                  >
+                    <option value="ACTIVO">ACTIVO</option>
+                    <option value="DESACTIVADO">DESACTIVADO</option>
+                    <option value="MANTENIMIENTO">MANTENIMIENTO</option>
+                  </select>
+                ) : (form.tipo === 'Caja NAP' || form.tipo === 'Poste') ? (
                   <select 
                     value={form.estado}
                     onChange={(e) => setForm({...form, estado: e.target.value})}
