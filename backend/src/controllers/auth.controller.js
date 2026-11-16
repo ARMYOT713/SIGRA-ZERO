@@ -4,18 +4,38 @@ const jwt = require("jsonwebtoken");
 const crypto = require('crypto');
 const { sendEmail } = require('../services/email.service');
 
-// POST /api/auth/login
+// POST /api/auth/login (Acepta ID de usuario o Correo Electrónico)
 async function login(req, res) {
   try {
     const { id_usuario, password } = req.body;
 
     if (!id_usuario || !password) {
-      return res.status(400).json({ error: "id_usuario y password son requeridos" });
+      return res.status(400).json({ error: "ID de usuario o correo y contraseña son requeridos" });
     }
 
-    const usuario = await prisma.usuarios.findUnique({
-      where: { id_usuario: Number(id_usuario) },
-    });
+    const identificadorLimpio = String(id_usuario).trim();
+    const esCorreo = identificadorLimpio.includes('@');
+
+    let usuario;
+
+    if (esCorreo) {
+      usuario = await prisma.usuarios.findFirst({
+        where: {
+          correo: {
+            equals: identificadorLimpio,
+            mode: 'insensitive',
+          },
+        },
+      });
+    } else {
+      const idNumerico = Number(identificadorLimpio);
+      if (isNaN(idNumerico)) {
+        return res.status(401).json({ error: "ID de usuario o correo electrónico inválidos" });
+      }
+      usuario = await prisma.usuarios.findUnique({
+        where: { id_usuario: idNumerico },
+      });
+    }
 
     if (!usuario) {
       return res.status(401).json({ error: "Credenciales inválidas" });
@@ -38,11 +58,12 @@ async function login(req, res) {
       usuario: {
         id_usuario: usuario.id_usuario,
         nombre_completo: usuario.nombre_completo,
+        correo: usuario.correo,
         rol: usuario.rol,
       },
     });
   } catch (error) {
-    console.error(error);
+    console.error("Error en login:", error);
     res.status(500).json({ error: "Error al iniciar sesión" });
   }
 }
@@ -50,7 +71,7 @@ async function login(req, res) {
 // POST /api/auth/registrar (solo ADMINISTRADOR puede crear usuarios)
 async function registrar(req, res) {
   try {
-    const { nombre_completo, password, rol } = req.body;
+    const { nombre_completo, correo, password, rol } = req.body;
 
     if (!nombre_completo || !password) {
       return res.status(400).json({ error: "nombre_completo y password son requeridos" });
@@ -61,6 +82,7 @@ async function registrar(req, res) {
     const nuevoUsuario = await prisma.usuarios.create({
       data: {
         nombre_completo,
+        ...(correo && { correo: correo.trim().toLowerCase() }),
         password: passwordHasheada,
         rol: rol || "SOPORTE_TECNICO",
       },
@@ -69,6 +91,7 @@ async function registrar(req, res) {
     res.status(201).json({
       id_usuario: nuevoUsuario.id_usuario,
       nombre_completo: nuevoUsuario.nombre_completo,
+      correo: nuevoUsuario.correo,
       rol: nuevoUsuario.rol,
     });
   } catch (error) {
@@ -80,14 +103,21 @@ async function registrar(req, res) {
 // POST /api/auth/forgot-password
 async function forgotPassword(req, res) {
   try {
-    const correo = req.body.correo || req.body.email;
+    const correoRaw = req.body.correo || req.body.email;
 
-    if (!correo) {
+    if (!correoRaw) {
       return res.status(400).json({ error: "El correo electrónico es requerido" });
     }
 
-    const usuario = await prisma.usuarios.findUnique({
-      where: { correo },
+    const correo = correoRaw.trim().toLowerCase();
+
+    const usuario = await prisma.usuarios.findFirst({
+      where: {
+        correo: {
+          equals: correo,
+          mode: 'insensitive',
+        },
+      },
     });
 
     if (!usuario) {
@@ -105,7 +135,7 @@ async function forgotPassword(req, res) {
       },
     });
 
-    const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:5173';
+    const frontendUrl = process.env.FRONTEND_URL || 'https://sigra-zero.vercel.app';
     const resetLink = `${frontendUrl}/reset-password?token=${resetToken}`;
 
     const htmlContent = `
@@ -122,7 +152,7 @@ async function forgotPassword(req, res) {
     `;
 
     await sendEmail({
-      to: correo,
+      to: usuario.correo,
       subject: 'Recuperación de Contraseña - SIGRA',
       html: htmlContent,
     });
@@ -130,7 +160,7 @@ async function forgotPassword(req, res) {
     res.json({ message: "Si el correo existe en el sistema, se enviarán las instrucciones de recuperación." });
   } catch (error) {
     console.error("Error crítico en forgotPassword:", error);
-    res.status(500).json({ error: "Error interno al procesar la solicitud de recuperación" });
+    res.status(500).json({ error: error.message || "Error interno al procesar la solicitud de recuperación" });
   }
 }
 
@@ -166,7 +196,6 @@ async function resetPassword(req, res) {
       },
     });
 
-    // Generamos el Token JWT de sesión de forma automática para evitar que tenga que loguearse de nuevo
     const newToken = jwt.sign(
       { id: usuario.id_usuario, rol: usuario.rol },
       process.env.JWT_SECRET,
@@ -179,6 +208,7 @@ async function resetPassword(req, res) {
       usuario: {
         id_usuario: usuario.id_usuario,
         nombre_completo: usuario.nombre_completo,
+        correo: usuario.correo,
         rol: usuario.rol,
       }
     });
