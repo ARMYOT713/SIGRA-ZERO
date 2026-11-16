@@ -1,3 +1,4 @@
+// src/components/MapaRed.jsx
 import React, { useEffect, useState, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { 
@@ -615,7 +616,6 @@ function MapaRed() {
                 />
               </BaseLayer>
 
-
               <BaseLayer name="Google Maps Calles">
                 <TileLayer
                   url="https://mt1.google.com/vt/lyrs=m&x={x}&y={y}&z={z}"
@@ -922,7 +922,7 @@ function MapaRed() {
                           }}
                           style={{
                             width: '100%',
-                            backgroundColor: '#0284c7',
+                            backgroundColor: '#0284c7', // Botón ver/ruta en azul cielo intuitivo
                             color: '#ffffff',
                             border: 'none',
                             padding: '12px',
@@ -947,7 +947,7 @@ function MapaRed() {
                           }}
                           style={{
                             width: '100%',
-                            backgroundColor: '#0f172a',
+                            backgroundColor: '#d97706', // Botón EDITAR corregido a color ámbar vibrante (eliminando el negro anterior)
                             color: '#ffffff',
                             border: 'none',
                             padding: '12px',
@@ -955,7 +955,7 @@ function MapaRed() {
                             fontSize: '0.8rem',
                             fontWeight: '700',
                             cursor: 'pointer',
-                            boxShadow: '0 4px 12px rgba(15, 23, 42, 0.2)'
+                            boxShadow: '0 4px 12px rgba(217, 119, 6, 0.3)'
                           }}
                         >
                           EDITAR
