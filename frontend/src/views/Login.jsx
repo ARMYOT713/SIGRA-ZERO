@@ -38,7 +38,7 @@ export const Login = () => {
       } else {
         setStatus({ 
           type: 'error', 
-          msg: res?.message || 'ID de usuario o contraseña incorrectos.' 
+          msg: res?.message || 'ID de usuario, correo o contraseña incorrectos.' 
         });
         setLoading(false);
       }
@@ -55,17 +55,28 @@ export const Login = () => {
   const handleRecoverySubmit = async (e) => {
     e.preventDefault();
     setRecoveryLoading(true);
+    setStatus({ type: '', msg: '' });
     
     try {
-      await fetch('http://localhost:3000/api/auth/forgot-password', {
+      const response = await fetch('https://sigra-zero.onrender.com/api/auth/forgot-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ correo: recoveryEmail }),
       });
+
+      const data = await response.json().catch(() => ({}));
+
+      if (!response.ok) {
+        throw new Error(data.error || 'No se pudo enviar el correo de recuperación.');
+      }
+
       setRecoverySent(true);
     } catch (err) {
-      console.error(err);
-      setRecoverySent(true);
+      console.error('Error en recuperación:', err);
+      setStatus({
+        type: 'error',
+        msg: err.message || 'Error al intentar enviar el correo.'
+      });
     } finally {
       setRecoveryLoading(false);
     }
@@ -95,7 +106,7 @@ export const Login = () => {
         {!isRecovering ? (
           <form onSubmit={handleSubmit} className="login-form">
             <div className="form-group">
-              <label htmlFor="userId">ID de Usuario</label>
+              <label htmlFor="userId">ID de Usuario o Correo Electrónico</label>
               <div className="input-field">
                 <svg className="field-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2">
                   <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
@@ -104,7 +115,7 @@ export const Login = () => {
                 <input
                   type="text"
                   id="userId"
-                  placeholder="Ej. 1"
+                  placeholder="Ej. 1 o correo@winfored.com"
                   value={id}
                   onChange={(e) => setId(e.target.value)}
                   required
@@ -154,7 +165,7 @@ export const Login = () => {
               <button 
                 type="button" 
                 className="forgot-password-link"
-                onClick={() => setIsRecovering(true)}
+                onClick={() => { setIsRecovering(true); setStatus({ type: '', msg: '' }); }}
               >
                 ¿Olvidaste tu contraseña?
               </button>
@@ -191,7 +202,7 @@ export const Login = () => {
                   type="button" 
                   className="forgot-password-link" 
                   style={{ textAlign: 'center', width: '100%', marginTop: '12px' }}
-                  onClick={() => setIsRecovering(false)}
+                  onClick={() => { setIsRecovering(false); setStatus({ type: '', msg: '' }); }}
                 >
                   ← Volver al login
                 </button>
@@ -204,7 +215,7 @@ export const Login = () => {
                   type="button" 
                   className="submit-btn" 
                   style={{ marginTop: '14px' }}
-                  onClick={() => { setIsRecovering(false); setRecoverySent(false); }}
+                  onClick={() => { setIsRecovering(false); setRecoverySent(false); setStatus({ type: '', msg: '' }); }}
                 >
                   Regresar
                 </button>

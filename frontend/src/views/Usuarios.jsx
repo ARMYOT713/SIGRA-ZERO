@@ -38,7 +38,7 @@ function Usuarios() {
 
   const obtenerUsuarios = async () => {
     try {
-      const response = await fetch('http://localhost:3000/api/usuarios', {
+      const response = await fetch('https://sigra-zero.onrender.com/api/usuarios', {
         headers: obtenerHeaders()
       });
       const data = await response.json();
@@ -84,7 +84,7 @@ function Usuarios() {
     e.preventDefault();
     try {
       if (modoEdicion) {
-        const response = await fetch(`http://localhost:3000/api/usuarios/${elementoSeleccionado.id_usuario}`, {
+        const response = await fetch(`https://sigra-zero.onrender.com/api/usuarios/${elementoSeleccionado.id_usuario}`, {
           method: 'PUT',
           headers: obtenerHeaders(),
           body: JSON.stringify(form)
@@ -96,7 +96,7 @@ function Usuarios() {
           alert("Error al editar el usuario");
         }
       } else {
-        const response = await fetch('http://localhost:3000/api/usuarios', {
+        const response = await fetch('https://sigra-zero.onrender.com/api/usuarios', {
           method: 'POST',
           headers: obtenerHeaders(),
           body: JSON.stringify(form)
@@ -116,7 +116,7 @@ function Usuarios() {
 
   const confirmarEliminar = async () => {
     try {
-      const response = await fetch(`http://localhost:3000/api/usuarios/${elementoSeleccionado.id_usuario}`, {
+      const response = await fetch(`https://sigra-zero.onrender.com/api/usuarios/${elementoSeleccionado.id_usuario}`, {
         method: 'DELETE',
         headers: obtenerHeaders()
       });

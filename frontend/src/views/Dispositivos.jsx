@@ -87,9 +87,9 @@ function Dispositivos() {
 
     try {
       const [resClientes, resNaps, resPostes] = await Promise.all([
-        fetch('http://localhost:3000/api/red/clientes', { headers }),
-        fetch('http://localhost:3000/api/red/naps', { headers }),
-        fetch('http://localhost:3000/api/red/postes', { headers })
+        fetch('https://sigra-zero.onrender.com/api/red/clientes', { headers }),
+        fetch('https://sigra-zero.onrender.com/api/red/naps', { headers }),
+        fetch('https://sigra-zero.onrender.com/api/red/postes', { headers })
       ]);
 
       const dataClientes = resClientes.ok ? await resClientes.json() : [];
@@ -302,8 +302,8 @@ function Dispositivos() {
       const token = localStorage.getItem('token');
       const headers = { 'Authorization': `Bearer ${token}` };
       const [resNaps, resPostes] = await Promise.all([
-        fetch('http://localhost:3000/api/red/naps', { headers }),
-        fetch('http://localhost:3000/api/red/postes', { headers })
+        fetch('https://sigra-zero.onrender.com/api/red/naps', { headers }),
+        fetch('https://sigra-zero.onrender.com/api/red/postes', { headers })
       ]);
       
       let postesTemp = [];
@@ -318,7 +318,7 @@ function Dispositivos() {
         const data = await resNaps.json();
         const lista = Array.isArray(data) ? data : data.naps || [];
         
-        const resClientes = await fetch('http://localhost:3000/api/red/clientes', { headers });
+        const resClientes = await fetch('https://sigra-zero.onrender.com/api/red/clientes', { headers });
         const dataClientes = resClientes.ok ? await resClientes.json() : [];
         const listaClientesCruda = Array.isArray(dataClientes) ? dataClientes : dataClientes.clientes || [];
         const listaClientes = listaClientesCruda.filter(cli => !(cli.tipo === 'ONU' || cli.es_onu));
@@ -544,7 +544,7 @@ function Dispositivos() {
     }
 
     try {
-      const respuesta = await fetch(`http://localhost:3000/api/red/${endpoint}/${elementoSeleccionado.realId}`, {
+      const respuesta = await fetch(`https://sigra-zero.onrender.com/api/red/${endpoint}/${elementoSeleccionado.realId}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${localStorage.getItem('token')}` }
       });
@@ -645,8 +645,8 @@ function Dispositivos() {
 
     try {
       const url = modoEdicion && elementoSeleccionado?.realId
-        ? `http://localhost:3000/api/red/${endpoint}/${elementoSeleccionado.realId}` 
-        : `http://localhost:3000/api/red/${endpoint}`;
+        ? `https://sigra-zero.onrender.com/api/red/${endpoint}/${elementoSeleccionado.realId}` 
+        : `https://sigra-zero.onrender.com/api/red/${endpoint}`;
 
       const respuesta = await fetch(url, {
         method: modoEdicion ? 'PUT' : 'POST',

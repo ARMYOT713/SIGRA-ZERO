@@ -43,10 +43,10 @@ function Resumen() {
       };
 
       const [resPostes, resNaps, resClientes, resReportes] = await Promise.all([
-        fetch('http://localhost:3000/api/red/postes', { headers }).catch(() => ({ ok: false })),
-        fetch('http://localhost:3000/api/red/naps', { headers }).catch(() => ({ ok: false })),
-        fetch('http://localhost:3000/api/red/clientes', { headers }).catch(() => ({ ok: false })),
-        fetch('http://localhost:3000/api/red/reportes', { headers }).catch(() => ({ ok: false }))
+        fetch('https://sigra-zero.onrender.com/api/red/postes', { headers }).catch(() => ({ ok: false })),
+        fetch('https://sigra-zero.onrender.com/api/red/naps', { headers }).catch(() => ({ ok: false })),
+        fetch('https://sigra-zero.onrender.com/api/red/clientes', { headers }).catch(() => ({ ok: false })),
+        fetch('https://sigra-zero.onrender.com/api/red/reportes', { headers }).catch(() => ({ ok: false }))
       ]);
 
       const dataPostes = resPostes.ok ? await resPostes.json() : [];

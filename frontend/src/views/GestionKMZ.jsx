@@ -37,7 +37,7 @@ function GestionKMZ() {
       
       // 1. Validación previa de archivo duplicado completo en servidor
       try {
-        const resVerificacion = await fetch(`http://localhost:3000/api/red/verificar-archivo?nombre=${encodeURIComponent(file.name)}`, {
+        const resVerificacion = await fetch(`https://sigra-zero.onrender.com/api/red/verificar-archivo?nombre=${encodeURIComponent(file.name)}`, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (resVerificacion.ok) {
@@ -57,9 +57,9 @@ function GestionKMZ() {
       // 2. Obtener elementos existentes en la BD para filtrar duplicados individuales por nombre/código
       const headers = { 'Authorization': `Bearer ${token}` };
       const [resPostes, resNaps, resOnus] = await Promise.all([
-        fetch('http://localhost:3000/api/red/postes', { headers }).catch(() => ({ ok: false })),
-        fetch('http://localhost:3000/api/red/naps', { headers }).catch(() => ({ ok: false })),
-        fetch('http://localhost:3000/api/red/onus', { headers }).catch(() => ({ ok: false }))
+        fetch('https://sigra-zero.onrender.com/api/red/postes', { headers }).catch(() => ({ ok: false })),
+        fetch('https://sigra-zero.onrender.com/api/red/naps', { headers }).catch(() => ({ ok: false })),
+        fetch('https://sigra-zero.onrender.com/api/red/onus', { headers }).catch(() => ({ ok: false }))
       ]);
 
       const codigosExistentes = new Set();
@@ -217,7 +217,7 @@ function GestionKMZ() {
       let ultimoPunto = null;
 
       for (const item of elementosLeidos) {
-        let endpoint = 'http://localhost:3000/api/red/postes';
+        let endpoint = 'https://sigra-zero.onrender.com/api/red/postes';
         let bodyData = {
           codigo: item.nombre,
           latitud: item.latitud,
@@ -226,7 +226,7 @@ function GestionKMZ() {
         };
 
         if (item.tipo === 'NAP') {
-          endpoint = 'http://localhost:3000/api/red/naps';
+          endpoint = 'https://sigra-zero.onrender.com/api/red/naps';
           bodyData = {
             codigo_nap: item.nombre,
             latitud: item.latitud,
@@ -234,7 +234,7 @@ function GestionKMZ() {
             archivo_kmz: nombreArchivo
           };
         } else if (item.tipo === 'ONU') {
-          endpoint = 'http://localhost:3000/api/red/onus';
+          endpoint = 'https://sigra-zero.onrender.com/api/red/onus';
           bodyData = {
             codigo: item.nombre,
             latitud: item.latitud,
@@ -286,9 +286,9 @@ function GestionKMZ() {
       const headers = { 'Authorization': `Bearer ${token}` };
 
       const [resPostes, resNaps, resOnus] = await Promise.all([
-        fetch('http://localhost:3000/api/red/postes', { headers }),
-        fetch('http://localhost:3000/api/red/naps', { headers }),
-        fetch('http://localhost:3000/api/red/onus', { headers })
+        fetch('https://sigra-zero.onrender.com/api/red/postes', { headers }),
+        fetch('https://sigra-zero.onrender.com/api/red/naps', { headers }),
+        fetch('https://sigra-zero.onrender.com/api/red/onus', { headers })
       ]);
 
       if (resPostes.status === 401 || resNaps.status === 401 || resOnus.status === 401) {

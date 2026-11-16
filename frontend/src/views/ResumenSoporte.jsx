@@ -33,7 +33,7 @@ function SoporteTecnico() {
     setCargando(true);
     try {
       const token = localStorage.getItem("token");
-      const response = await fetch("http://localhost:3000/api/red/reportes", {
+      const response = await fetch("https://sigra-zero.onrender.com/api/red/reportes", {
         headers: { 
           "Content-Type": "application/json", 
           "Authorization": `Bearer ${token}` 
@@ -341,7 +341,7 @@ function SoporteTecnico() {
     };
 
     try {
-      const response = await fetch(`http://localhost:3000/api/red/reportes/${idTarget}`, {
+      const response = await fetch(`https://sigra-zero.onrender.com/api/red/reportes/${idTarget}`, {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",

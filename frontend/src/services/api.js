@@ -1,7 +1,7 @@
 import axios from "axios";
 
 const api = axios.create({
-  baseURL: "http://localhost:3000/api"
+  baseURL: "https://sigra-zero.onrender.com/api"
 });
 
 // Interceptor: se ejecuta ANTES de cada petición

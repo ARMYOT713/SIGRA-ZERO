@@ -59,23 +59,23 @@ function ReporteFallas() {
       const token = localStorage.getItem("token");
 
       const [resReportes, resClientes, resNaps, resPostes, resUsuarios] = await Promise.all([
-        fetch("http://localhost:3000/api/red/reportes", {
+        fetch("https://sigra-zero.onrender.com/api/red/reportes", {
           headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }
         }).then(res => res.json()),
 
-        fetch("http://localhost:3000/api/red/clientes", {
+        fetch("https://sigra-zero.onrender.com/api/red/clientes", {
           headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }
         }).then(res => res.json()),
 
-        fetch("http://localhost:3000/api/red/naps", {
+        fetch("https://sigra-zero.onrender.com/api/red/naps", {
           headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }
         }).then(res => res.json()),
 
-        fetch("http://localhost:3000/api/red/postes", {
+        fetch("https://sigra-zero.onrender.com/api/red/postes", {
           headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }
         }).then(res => res.json()),
 
-        fetch("http://localhost:3000/api/usuarios", {
+        fetch("https://sigra-zero.onrender.com/api/usuarios", {
           headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }
         }).then(res => res.json()).catch(() => [])
       ]);
@@ -222,7 +222,7 @@ function ReporteFallas() {
           tecnico_asignado: nuevoReporte.tecnico_asignado
         };
 
-        const response = await fetch(`http://localhost:3000/api/red/reportes/${idReporteEditando}`, {
+        const response = await fetch(`https://sigra-zero.onrender.com/api/red/reportes/${idReporteEditando}`, {
           method: "PUT",
           headers: { 
             "Content-Type": "application/json",
@@ -239,7 +239,7 @@ function ReporteFallas() {
         limpiarFormulario();
         setPestanaActiva("consultar");
       } else {
-        const response = await fetch("http://localhost:3000/api/red/reportes", {
+        const response = await fetch("https://sigra-zero.onrender.com/api/red/reportes", {
           method: "POST",
           headers: { 
             "Content-Type": "application/json",
@@ -274,7 +274,7 @@ function ReporteFallas() {
 
     try {
       const token = localStorage.getItem("token");
-      const response = await fetch(`http://localhost:3000/api/red/reportes/${idReporte}`, {
+      const response = await fetch(`https://sigra-zero.onrender.com/api/red/reportes/${idReporte}`, {
         method: "DELETE",
         headers: { "Authorization": `Bearer ${token}` }
       });
