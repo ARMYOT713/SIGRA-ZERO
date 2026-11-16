@@ -110,7 +110,11 @@ function Dispositivos() {
       const listaClientesCruda = (Array.isArray(dataClientes) ? dataClientes : dataClientes.clientes || []);
 
       const listaOnus = listaClientesCruda
-        .filter(item => item.tipo === 'ONU' || item.es_onu)
+        .filter(item => {
+          const tipoUpper = (item.tipo || '').toUpperCase();
+          const codigoUpper = (item.codigo || item.cliente_ref || '').toUpperCase();
+          return tipoUpper === 'ONU' || item.es_onu === true || codigoUpper.includes('ONU');
+        })
         .map((item, idx) => ({
           ...item,
           realId: item.id || item.cliente_id || item.id_cliente || item._id,
@@ -123,8 +127,14 @@ function Dispositivos() {
           estado: (item.estado || item.estatus || 'ACTIVO').toUpperCase()
         }));
 
-      const listaClientes = listaClientesCruda
-        .filter(item => !(item.tipo === 'ONU' || item.es_onu))
+      // 2. Filtrar Clientes excluyendo tajantemente cualquier ONU
+       const listaClientes = listaClientesCruda
+        .filter(item => {
+          const tipoUpper = (item.tipo || '').toUpperCase();
+          const codigoUpper = (item.codigo || item.cliente_ref || '').toUpperCase();
+          const esOnuDetectada = tipoUpper === 'ONU' || item.es_onu === true || codigoUpper.includes('ONU');
+          return !esOnuDetectada;
+        })
         .map((item, idx) => {
           const napVal = item.napAsociada || item.nap_asociada || (item.nap ? item.nap.codigo_nap : '') || '';
           const puertoVal = item.puertoAsignado !== null && item.puertoAsignado !== undefined 
@@ -403,7 +413,7 @@ function Dispositivos() {
     setMostrarDropdownNap(false);
   };
 
-  const dispositivosFiltrados = dispositivos.filter(d => {
+const dispositivosFiltrados = dispositivos.filter(d => {
     const tipo = d.tipo || '';
     if (pestanaActiva === 'NAP' && tipo !== 'Caja NAP') return false;
     if (pestanaActiva === 'CLIENTES' && tipo !== 'Clientes') return false;
