@@ -126,8 +126,7 @@ function Dispositivos() {
           estado: (item.estado || item.estatus || 'ACTIVO').toUpperCase()
         }));
 
-      // 2. Filtrar Clientes excluyendo tajantemente cualquier ONU
-       const listaClientes = listaClientesCruda
+      const listaClientes = listaClientesCruda
         .filter(item => {
           const tipoUpper = (item.tipo || '').toUpperCase();
           const codigoUpper = (item.codigo || item.cliente_ref || '').toUpperCase();
@@ -412,7 +411,7 @@ function Dispositivos() {
     setMostrarDropdownNap(false);
   };
 
-const dispositivosFiltrados = dispositivos.filter(d => {
+  const dispositivosFiltrados = dispositivos.filter(d => {
     const tipo = (d.tipo || '').toUpperCase();
     
     if (pestanaActiva === 'NAP') {
@@ -462,9 +461,9 @@ const dispositivosFiltrados = dispositivos.filter(d => {
     await cargarDatosAuxiliares();
 
     let tipoInicial = 'Clientes';
-    if (pestanaActiva === 'NAP') tipoInicial = 'NAP';
+    if (pestanaActiva === 'NAP') tipoInicial = 'Caja NAP';
     else if (pestanaActiva === 'POSTES') tipoInicial = 'Poste';
-    else if (pestanaActiva === 'ONUs') tipoInicial = 'ONU';
+    else if (pestanaActiva === 'ONUS') tipoInicial = 'ONU';
 
     setForm({
       tipo: tipoInicial,
@@ -773,7 +772,7 @@ const dispositivosFiltrados = dispositivos.filter(d => {
             { id: 'NAP', label: 'NAP' },
             { id: 'CLIENTES', label: 'CLIENTES' },
             { id: 'POSTES', label: 'POSTES' },
-            { id: 'ONUs', label: 'ONUs' }
+            { id: 'ONUS', label: 'ONUS' }
           ].map((tab) => (
             <button
               key={tab.id}
@@ -796,7 +795,7 @@ const dispositivosFiltrados = dispositivos.filter(d => {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ fontSize: '0.78rem', fontWeight: '700', color: '#475569' }}>Estatus:</span>
-          {pestanaActiva === 'ONUs' ? (
+          {pestanaActiva === 'ONUS' ? (
             [
               { id: 'TODOS', label: 'TODOS' },
               { id: 'ACTIVO', label: 'ACTIVO' },
