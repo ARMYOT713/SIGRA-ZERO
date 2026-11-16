@@ -1,3 +1,4 @@
+// src/components/Dispositivos.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
 import { convertirDMSaDecimal } from '../utils/coordenadas';
@@ -400,7 +401,6 @@ function Dispositivos() {
     setMostrarDropdownNap(false);
   };
 
-  // Buscador Global Jerárquico por Código, Nombre, Serie, Modelo, Poste, NAP y Localidad/Barrio
   const dispositivosFiltrados = dispositivos.filter(d => {
     const tipo = d.tipo || '';
     if (pestanaActiva === 'NAP' && tipo !== 'Caja NAP') return false;
@@ -408,7 +408,6 @@ function Dispositivos() {
     if (pestanaActiva === 'POSTES' && tipo !== 'Poste') return false;
     if (pestanaActiva === 'ONUS' && tipo !== 'ONU') return false;
 
-    // Filtro por estatus
     if (filtroEstatusDispositivo !== 'TODOS') {
       const estadoStr = String(d.estado ?? d.estatus ?? 'ACTIVO').trim().toUpperCase();
       if (filtroEstatusDispositivo === 'ACTIVO' && estadoStr !== 'ACTIVO') return false;
@@ -622,7 +621,7 @@ function Dispositivos() {
         datosAEnviar = {
          poste_id: idPosteFinal,
          codigo_nap: form.codigo,
-         localidad: localidadFinal, // <--- Aquí usamos la variable normalizada
+         localidad: localidadFinal,
          no_serie: form.serie || null,
          estado: form.estado,
          latitud: form.latitud ? parseFloat(form.latitud) : null,
@@ -631,7 +630,6 @@ function Dispositivos() {
          fecha_instalacion: form.fecha_instalacion ? new Date(form.fecha_instalacion).toISOString() : new Date().toISOString()
         };
     } else {
-      // Para Postes
       datosAEnviar = {
       codigo: form.codigo,
       localidad: localidadFinal,
@@ -771,7 +769,6 @@ function Dispositivos() {
           ))}
         </div>
 
-        {/* Botones de Filtro por Estatus Dinámicos */}
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ fontSize: '0.78rem', fontWeight: '700', color: '#475569' }}>Estatus:</span>
           {(pestanaActiva === 'NAP' || pestanaActiva === 'POSTES') ? (
@@ -787,8 +784,8 @@ function Dispositivos() {
                   padding: '6px 12px',
                   borderRadius: '6px',
                   border: '1px solid #cbd5e1',
-                  backgroundColor: filtroEstatusDispositivo === f.id ? '#017d9c' : '#ffffff',
-                  color: filtroEstatusDispositivo === f.id ? '#ffffff' : '#1a1b1b',
+                  backgroundColor: filtroEstatusDispositivo === f.id ? '#0284c7' : '#ffffff',
+                  color: filtroEstatusDispositivo === f.id ? '#ffffff' : '#334155',
                   fontSize: '0.75rem',
                   fontWeight: '600',
                   cursor: 'pointer'
@@ -811,8 +808,8 @@ function Dispositivos() {
                   padding: '6px 12px',
                   borderRadius: '6px',
                   border: '1px solid #cbd5e1',
-                  backgroundColor: filtroEstatusDispositivo === f.id ? '#017d9c' : '#ffffff',
-                  color: filtroEstatusDispositivo === f.id ? '#ffffff' : '#1a1b1b',
+                  backgroundColor: filtroEstatusDispositivo === f.id ? '#0284c7' : '#ffffff',
+                  color: filtroEstatusDispositivo === f.id ? '#ffffff' : '#334155',
                   fontSize: '0.75rem',
                   fontWeight: '600',
                   cursor: 'pointer'
@@ -896,25 +893,25 @@ function Dispositivos() {
                       <td style={{ padding: '12px 16px', textAlign: 'right' }}>
                         <button 
                           onClick={() => irAlMapaGeolocalizacion(item)}
-                          style={{ backgroundColor: '#022d58', color: '#ffffff', border: '1px solid #022a5a', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', marginRight: '8px', fontSize: '0.75rem', fontWeight: '600' }}
+                          style={{ backgroundColor: '#0284c7', color: '#ffffff', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', marginRight: '6px', fontSize: '0.75rem', fontWeight: '600' }}
                         >
                           Ubicar Pin
                         </button>
                         <button 
                           onClick={() => setFilaExpandida(filaExpandida === item.uniqueKey ? null : item.uniqueKey)}
-                          style={{ backgroundColor: '#e0f2fe', color: '#0369a1', border: '1px solid #bae6fd', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', marginRight: '8px', fontSize: '0.75rem', fontWeight: '600' }}
+                          style={{ backgroundColor: '#475569', color: '#ffffff', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', marginRight: '6px', fontSize: '0.75rem', fontWeight: '600' }}
                         >
                           {filaExpandida === item.uniqueKey ? 'Ocultar' : 'Detalles'}
                         </button>
                         <button 
                           onClick={(e) => abrirModalEditar(item, e)}
-                          style={{ backgroundColor: '#fef08a', color: '#854d0e', border: '1px solid #fde047', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', marginRight: '8px', fontSize: '0.75rem', fontWeight: '600' }}
+                          style={{ backgroundColor: '#d97706', color: '#ffffff', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', marginRight: '6px', fontSize: '0.75rem', fontWeight: '600' }}
                         >
                           Editar
                         </button>
                         <button 
                           onClick={(e) => abrirModalEliminar(item, e)}
-                          style={{ backgroundColor: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '600' }}
+                          style={{ backgroundColor: '#dc2626', color: '#ffffff', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '600' }}
                         >
                           Eliminar
                         </button>
@@ -1055,7 +1052,6 @@ function Dispositivos() {
                 </div>
               </div>
 
-              {/* Selector de Localidad / Barrio para evitar duplicidad de nombres */}
               <div>
                 <label style={{ fontSize: '0.75rem', color: '#0369a1', fontWeight: '700', display: 'block', marginBottom: '4px' }}>
                   Localidad / Barrio:
@@ -1073,7 +1069,6 @@ function Dispositivos() {
                 </select>
               </div>
 
-              {/* Selector de Estatus Operativo Dinámico */}
               <div>
                 <label style={{ fontSize: '0.75rem', color: '#64748b', display: 'block', marginBottom: '4px' }}>Estatus Operativo:</label>
                 {(form.tipo === 'Caja NAP' || form.tipo === 'Poste') ? (
@@ -1191,7 +1186,7 @@ function Dispositivos() {
                                     onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f1f5f9'; }}
                                     onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#ffffff'; }}
                                   >
-                                    {nap.codigo} {nap.posteAsociado ? `(Poste: ${nap.posteAsociado})` : ''} — <strong>Puertos usados: {usados}/{capacidadTotal} (Libres: {libres})</strong>
+                                    {nap.codigo} {nap.posteAsociado ? `(Poste: ${nap.posteAsociado})` : ''} — Puertos usados: {usados}/{capacidadTotal} (Libres: {libres})
                                   </div>
                                 );
                               })
