@@ -459,7 +459,7 @@ const dispositivosFiltrados = dispositivos.filter(d => {
     let tipoInicial = 'Clientes';
     if (pestanaActiva === 'NAP') tipoInicial = 'Caja NAP';
     else if (pestanaActiva === 'POSTES') tipoInicial = 'Poste';
-    else if (pestanaActiva === 'ONUS') tipoInicial = 'ONU';
+    else if (pestanaActiva === 'ONUs') tipoInicial = 'ONU';
 
     setForm({
       tipo: tipoInicial,
