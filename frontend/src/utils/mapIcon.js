@@ -1,18 +1,12 @@
 import L from 'leaflet';
  
-// Medidas para NAP y POSTE (54x54, ancla al centro)
 const medidaUniforme = [54, 54];
 const anclaUniforme = [27, 27];
- 
-// Medidas reducidas para el módem / cliente (36x36, ancla al centro)
-const medidaModem = [36, 36];
+ const medidaModem = [36, 36];
 const anclaModem = [18, 18];
- 
-// Medidas del ícono GPS (pin: la punta inferior marca la posición exacta)
-const medidaGps = [40, 40];
+ const medidaGps = [40, 40];
 const anclaGps = [20, 40];
  
-// 1. CLIENTE / MÓDEM (más pequeño)
 export const iconoCliente = L.icon({
   iconUrl: '/icons/cliente.png',
   iconSize: medidaModem,
@@ -39,6 +33,15 @@ export const iconoPoste = L.icon({
   tooltipAnchor: [0, -25]
 });
 
+// 4. ONU (Equipo de Red / Fibra)
+export const iconoOnu = L.icon({
+  iconUrl: '/icons/onus.png',
+  iconSize: medidaUniforme,
+  iconAnchor: anclaUniforme,
+  popupAnchor: [0, -27],
+  tooltipAnchor: [0, -25]
+});
+
 export const iconoMiGps = L.divIcon({
   iconUrl: '/icons/pin.png',
   iconSize: medidaUniforme,
@@ -46,7 +49,7 @@ export const iconoMiGps = L.divIcon({
   popupAnchor: [0, -27]
 });
 
-// 4. ELEMENTO SELECCIONADO (Mantiene el indicador rojo con check que ya tenías)
+// 5. ELEMENTO SELECCIONADO (Indicador rojo con check)
 export const iconoSeleccionado = L.divIcon({
   className: 'custom-icon',
   html: `<div style="background-color: #dc2626; width: 54px; height: 54px; border-radius: 50%; display: flex; align-items: center; justify-content: center; border: 3.5px solid #ffffff; box-shadow: 0 4px 12px rgba(220, 38, 38, 0.4);">
