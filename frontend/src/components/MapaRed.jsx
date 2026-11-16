@@ -1,4 +1,3 @@
-// src/components/MapaRed.jsx
 import React, { useEffect, useState, useRef } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
 import { 
@@ -13,7 +12,7 @@ import {
 import 'leaflet/dist/leaflet.css';
 import L from 'leaflet';
 
-import { iconoNap, iconoPoste, iconoCliente } from '../utils/mapIcon';
+import { iconoNap, iconoPoste, iconoCliente, iconoOnu } from '../utils/mapIcon';
 import { calcularDistancia } from '../utils/haversine';
 import { obtenerDispositivosMapa } from '../services/api';
 
