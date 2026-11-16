@@ -1,4 +1,3 @@
-// src/views/Dispositivos.jsx
 import React, { useState, useEffect, useRef } from 'react';
 import { useSearchParams, useLocation, useNavigate } from 'react-router-dom';
 import { convertirDMSaDecimal } from '../utils/coordenadas';
@@ -414,11 +413,17 @@ function Dispositivos() {
   };
 
 const dispositivosFiltrados = dispositivos.filter(d => {
-    const tipo = d.tipo || '';
-    if (pestanaActiva === 'NAP' && tipo !== 'Caja NAP') return false;
-    if (pestanaActiva === 'CLIENTES' && tipo !== 'Clientes') return false;
-    if (pestanaActiva === 'POSTES' && tipo !== 'Poste') return false;
-    if (pestanaActiva === 'ONUS' && tipo !== 'ONU') return false;
+    const tipo = (d.tipo || '').toUpperCase();
+    
+    if (pestanaActiva === 'NAP') {
+      if (!tipo.includes('NAP') && !tipo.includes('CAJA NAP')) return false;
+    } else if (pestanaActiva === 'CLIENTES') {
+      if (tipo.includes('NAP') || tipo.includes('POSTE') || tipo.includes('ONU') || d.es_onu) return false;
+    } else if (pestanaActiva === 'POSTES') {
+      if (!tipo.includes('POSTE')) return false;
+    } else if (pestanaActiva === 'ONUS') {
+      if (!tipo.includes('ONU') && !d.es_onu) return false;
+    }
 
     if (filtroEstatusDispositivo !== 'TODOS') {
       const estadoStr = String(d.estado ?? d.estatus ?? 'ACTIVO').trim().toUpperCase();
