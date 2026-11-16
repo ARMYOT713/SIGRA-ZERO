@@ -457,7 +457,7 @@ const dispositivosFiltrados = dispositivos.filter(d => {
     await cargarDatosAuxiliares();
 
     let tipoInicial = 'Clientes';
-    if (pestanaActiva === 'NAP') tipoInicial = 'Caja NAP';
+    if (pestanaActiva === 'NAP') tipoInicial = 'NAP';
     else if (pestanaActiva === 'POSTES') tipoInicial = 'Poste';
     else if (pestanaActiva === 'ONUs') tipoInicial = 'ONU';
 
@@ -768,7 +768,7 @@ const dispositivosFiltrados = dispositivos.filter(d => {
             { id: 'NAP', label: 'NAP' },
             { id: 'CLIENTES', label: 'CLIENTES' },
             { id: 'POSTES', label: 'POSTES' },
-            { id: 'ONUS', label: 'ONUS' }
+            { id: 'ONUs', label: 'ONUs' }
           ].map((tab) => (
             <button
               key={tab.id}
@@ -791,7 +791,7 @@ const dispositivosFiltrados = dispositivos.filter(d => {
 
         <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
           <span style={{ fontSize: '0.78rem', fontWeight: '700', color: '#475569' }}>Estatus:</span>
-          {pestanaActiva === 'ONUS' ? (
+          {pestanaActiva === 'ONUs' ? (
             [
               { id: 'TODOS', label: 'TODOS' },
               { id: 'ACTIVO', label: 'ACTIVO' },
