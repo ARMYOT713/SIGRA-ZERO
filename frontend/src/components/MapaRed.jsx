@@ -61,13 +61,18 @@ function InvalidarTamanoMapa({ panelAbierto }) {
 
   return null;
 }
-
 const obtenerIconoBaseSegunTipo = (disp) => {
   const tipoUpper = (disp.tipo || '').toUpperCase();
+  const codigoUpper = (disp.codigo || disp.cliente_ref || '').toUpperCase();
+  
   let iconoBase = iconoCliente;
-  if (tipoUpper.includes('POSTE')) iconoBase = iconoPoste;
-  else if (tipoUpper.includes('NAP')) iconoBase = iconoNap;
-  else if (tipoUpper.includes('ONU')) iconoBase = iconoOnu;
+  if (tipoUpper.includes('POSTE')) {
+    iconoBase = iconoPoste;
+  } else if (tipoUpper.includes('NAP')) {
+    iconoBase = iconoNap;
+  } else if (tipoUpper.includes('ONU') || codigoUpper.includes('ONU') || disp.es_onu) {
+    iconoBase = iconoOnu;
+  }
   return iconoBase;
 };
 
