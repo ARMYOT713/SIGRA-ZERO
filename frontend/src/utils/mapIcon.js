@@ -1,12 +1,23 @@
+// src/utils/mapIcon.js
 import L from 'leaflet';
  
+// Medidas para NAP y POSTE (54x54, ancla al centro)
 const medidaUniforme = [54, 54];
 const anclaUniforme = [27, 27];
- const medidaModem = [36, 36];
+
+// Medidas más grandes y visibles para la ONU (64x64, ancla al centro)
+const medidaOnu = [64, 64];
+const anclaOnu = [32, 32];
+ 
+// Medidas reducidas para el módem / cliente (36x36, ancla al centro)
+const medidaModem = [36, 36];
 const anclaModem = [18, 18];
- const medidaGps = [40, 40];
+ 
+// Medidas del ícono GPS (pin: la punta inferior marca la posición exacta)
+const medidaGps = [40, 40];
 const anclaGps = [20, 40];
  
+// 1. CLIENTE / MÓDEM (más pequeño)
 export const iconoCliente = L.icon({
   iconUrl: '/icons/cliente.png',
   iconSize: medidaModem,
@@ -33,13 +44,13 @@ export const iconoPoste = L.icon({
   tooltipAnchor: [0, -25]
 });
 
-// 4. ONU (Equipo de Red / Fibra)
+// 4. ONU (Equipo de Red / Fibra - Tamaño aumentado a 64x64)
 export const iconoOnu = L.icon({
   iconUrl: '/icons/onus.png',
-  iconSize: medidaUniforme,
-  iconAnchor: anclaUniforme,
-  popupAnchor: [0, -27],
-  tooltipAnchor: [0, -25]
+  iconSize: medidaOnu,
+  iconAnchor: anclaOnu,
+  popupAnchor: [0, -32],
+  tooltipAnchor: [0, -30]
 });
 
 export const iconoMiGps = L.divIcon({
