@@ -633,7 +633,7 @@ function SoporteTecnico() {
                           {estaCompletado && (
                             <button
                               onClick={() => generarYGuardarPDFAutomatico(rep)}
-                              style={{ padding: "5px 10px", backgroundColor: "#475569", color: "#ffffff", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "0.75rem", fontWeight: "600", whiteSpace: "nowrap" }}
+                              style={{ padding: "5px 10px",  backgroundColor: "#f32011", color: "#ffffff", border: "none", borderRadius: "4px", cursor: "pointer", fontSize: "0.75rem", fontWeight: "600", whiteSpace: "nowrap" }}
                             >
                               PDF
                             </button>

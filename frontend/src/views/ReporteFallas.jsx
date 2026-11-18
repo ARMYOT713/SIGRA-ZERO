@@ -441,7 +441,7 @@ function ReporteFallas() {
       const napCli = rep.nap?.codigo_nap || rep.cliente?.nap?.codigo_nap || "N/A";
       const posteCli = rep.poste?.codigo || rep.nap?.poste?.codigo || rep.cliente?.nap?.poste?.codigo || "N/A";
       infoHtml = `
-        <div class="field"><strong>Tipo de Elemento:</strong> Cliente / Suscriptor</div>
+        <div class="field"><strong>Tipo de Elemento:</strong> Cliente</div>
         <div class="field"><strong>Nombre Completo:</strong> ${nombreCli}</div>
         <div class="field"><strong>Teléfono de Contacto:</strong> ${telCli}</div>
         <div class="field"><strong>Caja NAP Conectada:</strong> ${napCli}</div>
@@ -910,7 +910,7 @@ function ReporteFallas() {
                                     onClick={() => generarYGuardarPDFAutomatico(rep)}
                                     style={{
                                       padding: "5px 10px",
-                                      backgroundColor: "#475569",
+                                      backgroundColor: "#f32011",
                                       color: "#ffffff",
                                       border: "none",
                                       borderRadius: "4px",
