@@ -11,7 +11,6 @@ async function obtenerUsuarios(req, res) {
         correo: true,
         rol: true,
         telefono: true,
-        // Omitimos el password por seguridad al listar
       },
       orderBy: { id_usuario: 'asc' }
     });
@@ -22,24 +21,50 @@ async function obtenerUsuarios(req, res) {
   }
 }
 
-// 2. CREAR USUARIO (Desde el panel de administración)
+// 2. CREAR USUARIO (Con asignación manual de ID por el Administrador)
 async function crearUsuario(req, res) {
   try {
-    const { nombre_completo, correo, password, rol, telefono } = req.body;
+    const { id_usuario, nombre_completo, correo, password, rol, telefono } = req.body;
 
     if (!nombre_completo || !password) {
       return res.status(400).json({ error: "El nombre completo y la contraseña son obligatorios" });
+    }
+
+    const idManual = id_usuario !== undefined && id_usuario !== null && String(id_usuario).trim() !== ""
+      ? Number(id_usuario)
+      : undefined;
+
+    if (idManual !== undefined) {
+      if (isNaN(idManual) || idManual <= 0) {
+        return res.status(400).json({ error: "El ID de usuario debe ser un número entero mayor a 0" });
+      }
+      const existeId = await prisma.usuarios.findUnique({
+        where: { id_usuario: idManual }
+      });
+      if (existeId) {
+        return res.status(400).json({ error: `El ID ${idManual} ya está ocupado por otro usuario` });
+      }
+    }
+
+    if (correo && correo.trim() !== "") {
+      const existeCorreo = await prisma.usuarios.findUnique({
+        where: { correo: correo.trim() }
+      });
+      if (existeCorreo) {
+        return res.status(400).json({ error: "El correo electrónico ya está registrado" });
+      }
     }
 
     const passwordHasheada = await bcrypt.hash(password, 10);
 
     const nuevoUsuario = await prisma.usuarios.create({
       data: {
-        nombre_completo,
-        correo: correo || null,
+        ...(idManual !== undefined ? { id_usuario: idManual } : {}),
+        nombre_completo: nombre_completo.trim(),
+        correo: correo && correo.trim() !== "" ? correo.trim() : null,
         password: passwordHasheada,
         rol: rol || "SOPORTE_TECNICO",
-        telefono: telefono || null
+        telefono: telefono && telefono.trim() !== "" ? telefono.trim() : null
       },
     });
 
@@ -59,27 +84,51 @@ async function crearUsuario(req, res) {
   }
 }
 
-// 3. ACTUALIZAR USUARIO
+// 3. ACTUALIZAR USUARIO (Permite cambiar también el id_usuario)
 async function actualizarUsuario(req, res) {
   try {
-    const { id } = req.params;
-    const { nombre_completo, correo, password, rol, telefono } = req.body;
+    const idActual = Number(req.params.id);
+    const { id_usuario, nombre_completo, correo, password, rol, telefono } = req.body;
+
+    const nuevoId = id_usuario !== undefined && id_usuario !== null && String(id_usuario).trim() !== ""
+      ? Number(id_usuario)
+      : idActual;
+
+    if (isNaN(nuevoId) || nuevoId <= 0) {
+      return res.status(400).json({ error: "El ID de usuario debe ser un número entero mayor a 0" });
+    }
+
+    if (nuevoId !== idActual) {
+      const existeId = await prisma.usuarios.findUnique({
+        where: { id_usuario: nuevoId }
+      });
+      if (existeId) {
+        return res.status(400).json({ error: `El ID ${nuevoId} ya está ocupado por otro usuario` });
+      }
+    }
 
     const datosAActualizar = {
-      nombre_completo,
-      correo: correo || null,
+      id_usuario: nuevoId,
+      nombre_completo: nombre_completo ? nombre_completo.trim() : undefined,
+      correo: correo && correo.trim() !== "" ? correo.trim() : null,
       rol,
-      telefono: telefono || null
+      telefono: telefono && telefono.trim() !== "" ? telefono.trim() : null
     };
 
-    // Si mandó una nueva contraseña, la hasheamos; si viene vacía, no la tocamos
     if (password && password.trim() !== "") {
       datosAActualizar.password = await bcrypt.hash(password, 10);
     }
 
     const usuarioActualizado = await prisma.usuarios.update({
-      where: { id_usuario: Number(id) },
-      data: datosAActualizar
+      where: { id_usuario: idActual },
+      data: datosAActualizar,
+      select: {
+        id_usuario: true,
+        nombre_completo: true,
+        correo: true,
+        rol: true,
+        telefono: true
+      }
     });
 
     res.json({

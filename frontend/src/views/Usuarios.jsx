@@ -54,22 +54,11 @@ function Usuarios() {
     obtenerUsuarios();
   }, []);
 
-  // Calcula el primer ID numérico disponible (ej. si existen 1, 16, 17 -> sugiere el 2)
-  const calcularSiguienteIdDisponible = () => {
-    const idsOcupados = new Set(usuarios.map(u => Number(u.id_usuario)));
-    let candidato = 1;
-    while (idsOcupados.has(candidato)) {
-      candidato++;
-    }
-    return String(candidato);
-  };
-
   const abrirModalCrear = () => {
     setModoEdicion(false);
     setMostrarPassword(false);
-    const idSugerido = calcularSiguienteIdDisponible();
     setForm({
-      id_usuario: idSugerido,
+      id_usuario: '',
       nombre_completo: '',
       correo: '',
       rol: 'SOPORTE_TECNICO',
@@ -104,9 +93,11 @@ function Usuarios() {
   const handleGuardar = async (e) => {
     e.preventDefault();
 
-    const idNum = Number(form.id_usuario);
-    if (!idNum || idNum <= 0) {
-      mostrarAlertaFlotante("El ID de usuario debe ser un número entero mayor a 0.", "error");
+    const idLimpio = String(form.id_usuario).trim();
+    const idNum = Number(idLimpio);
+
+    if (!idLimpio || isNaN(idNum) || idNum <= 0) {
+      mostrarAlertaFlotante("Ingresa un ID numérico válido para el usuario.", "error");
       return;
     }
 
@@ -309,16 +300,21 @@ function Usuarios() {
             </h3>
 
             <form onSubmit={handleGuardar} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr', gap: '12px' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: '130px 1fr', gap: '12px' }}>
                 <div>
                   <label style={{ fontSize: '0.75rem', color: '#0369a1', display: 'block', marginBottom: '4px', fontWeight: '700' }}>ID Usuario:</label>
                   <input 
-                    type="number" 
-                    min="1"
+                    type="text"
+                    inputMode="numeric"
+                    maxLength={9}
+                    placeholder="Ej. 2, 105..."
                     required
                     value={form.id_usuario}
-                    onChange={(e) => setForm({...form, id_usuario: e.target.value})}
-                    style={{ width: '100%', padding: '9px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#f8fafc', color: '#0f172a', fontSize: '0.85rem', fontWeight: '700', boxSizing: 'border-box', outline: 'none' }}
+                    onChange={(e) => {
+                      const soloDigitos = e.target.value.replace(/\D/g, '');
+                      setForm({ ...form, id_usuario: soloDigitos });
+                    }}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#0f172a', fontSize: '0.85rem', fontWeight: '700', boxSizing: 'border-box', outline: 'none' }}
                   />
                 </div>
                 <div>
