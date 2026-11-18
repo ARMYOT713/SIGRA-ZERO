@@ -27,7 +27,7 @@ export const Login = () => {
   const [creandoAdmin, setCreandoAdmin] = useState(false);
 
   const timerRef = useRef(null);
-  const { login } = useAuth();
+  const { login, logout } = useAuth();
   const navigate = useNavigate();
 
   // Función que muestra el estado arriba del formulario y borra los errores a los 5 segundos
@@ -51,6 +51,14 @@ export const Login = () => {
   };
 
   useEffect(() => {
+    // Candado de seguridad: si el usuario regresa a /login con las flechas del navegador,
+    // se destruye cualquier sesión activa para impedir que regrese con la flecha "Adelante"
+    localStorage.removeItem('token');
+    localStorage.removeItem('usuario');
+    if (typeof logout === 'function') {
+      try { logout(); } catch (e) {}
+    }
+
     const verificarEstadoInicial = async () => {
       try {
         const res = await fetch('https://sigra-zero.onrender.com/api/auth/setup-status');
@@ -84,7 +92,7 @@ export const Login = () => {
       if (res && res.success) {
         mostrarEstadoSuperior('success', 'Acceso correcto. Entrando al sistema...', 0);
         setTimeout(() => {
-          navigate('/');
+          navigate('/', { replace: true });
         }, 1200);
       } else {
         mostrarEstadoSuperior(
@@ -272,8 +280,16 @@ export const Login = () => {
                 </button>
               </div>
 
-              <button type="submit" className="submit-btn" disabled={loading}>
-                {loading ? 'VERIFICANDO...' : 'ACCEDER AL SISTEMA'}
+              <button
+                type="submit"
+                className={`submit-btn ${loading || status.type === 'success' ? 'submit-btn-green' : ''}`}
+                disabled={loading}
+              >
+                {status.type === 'success'
+                  ? '✓ CREDENCIALES CORRECTAS'
+                  : loading
+                  ? 'VERIFICANDO...'
+                  : 'ACCEDER AL SISTEMA'}
               </button>
             </form>
 
@@ -318,7 +334,11 @@ export const Login = () => {
                   </div>
                 </div>
 
-                <button type="submit" className="submit-btn" disabled={recoveryLoading}>
+                <button
+                  type="submit"
+                  className={`submit-btn ${recoveryLoading ? 'submit-btn-green' : ''}`}
+                  disabled={recoveryLoading}
+                >
                   {recoveryLoading ? 'ENVIANDO...' : 'ENVIAR ENLACE'}
                 </button>
 
@@ -340,7 +360,7 @@ export const Login = () => {
                 <p style={{ margin: 0 }}>Revisa tu bandeja para continuar con la recuperación.</p>
                 <button 
                   type="button" 
-                  className="submit-btn" 
+                  className="submit-btn submit-btn-green" 
                   style={{ marginTop: '14px' }}
                   onClick={() => {
                     setVistaActiva('login');
