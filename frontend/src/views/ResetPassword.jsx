@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import './Login.css';
 
@@ -11,46 +11,78 @@ export default function ResetPassword() {
   const [confirmarPassword, setConfirmarPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
+  const [status, setStatus] = useState({ type: '', msg: '' });
   const [cargando, setCargando] = useState(false);
-  const [notificacion, setNotificacion] = useState({ visible: false, mensaje: '', tipo: 'exito' });
 
-  const mostrarToast = (mensaje, tipo = 'exito') => {
-    setNotificacion({ visible: true, mensaje, tipo });
-    setTimeout(() => {
-      setNotificacion(prev => ({ ...prev, visible: false }));
-    }, 4000);
-  };
+  const timerRef = useRef(null);
 
   const tieneMayuscula = /[A-Z]/.test(nuevaPassword);
   const tieneMinuscula = /[a-z]/.test(nuevaPassword);
   const tieneEspecial = /[@$!%*?&#._#-]/.test(nuevaPassword);
   const tieneLargoMinimo = nuevaPassword.length >= 8;
 
+  const mostrarEstadoSuperior = (type, msg, autoHideMs = 5000) => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setStatus({ type, msg });
+
+    if (type === 'error' && autoHideMs > 0) {
+      timerRef.current = setTimeout(() => {
+        setStatus({ type: '', msg: '' });
+      }, autoHideMs);
+    }
+  };
+
+  const limpiarEstadoAlEscribir = () => {
+    if (status.msg) {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      setStatus({ type: '', msg: '' });
+    }
+  };
+
+  useEffect(() => {
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
+  }, []);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setStatus({ type: '', msg: '' });
 
     if (!nuevaPassword || !confirmarPassword) {
-      mostrarToast('Por favor completa todos los campos.', 'error');
+      mostrarEstadoSuperior('error', 'Por favor completa todos los campos.');
       return;
     }
 
     if (nuevaPassword !== confirmarPassword) {
-      mostrarToast('Las contraseñas no coinciden.', 'error');
+      mostrarEstadoSuperior('error', 'Las contraseñas no coinciden.');
       return;
     }
 
-    if (!tieneLargoMinimo || !tieneMayuscula || !tieneMinuscula || !tieneEspecial) {
-      mostrarToast('Cumple con todos los requisitos de seguridad de la contraseña.', 'error');
+    if (!tieneLargoMinimo) {
+      mostrarEstadoSuperior('error', 'La contraseña debe tener al menos 8 caracteres.');
+      return;
+    }
+
+    if (!tieneMayuscula || !tieneMinuscula) {
+      mostrarEstadoSuperior('error', 'La contraseña debe incluir al menos una letra mayúscula y una minúscula.');
+      return;
+    }
+
+    if (!tieneEspecial) {
+      mostrarEstadoSuperior('error', 'La contraseña debe contener al menos un carácter especial (@, $, !, %, *, ?, &, #, ., _).');
       return;
     }
 
     if (!token) {
-      mostrarToast('Token de recuperación no válido o ausente en el enlace.', 'error');
+      mostrarEstadoSuperior('error', 'Token de recuperación no válido o ausente en el enlace.');
       return;
     }
 
     try {
       setCargando(true);
+      mostrarEstadoSuperior('info', 'Actualizando credenciales...', 0);
+
       const response = await fetch('https://sigra-zero.onrender.com/api/auth/reset-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -68,14 +100,14 @@ export default function ResetPassword() {
         localStorage.setItem('usuario', JSON.stringify(data.usuario));
       }
 
-      mostrarToast('Contraseña actualizada con éxito.');
-      
+      mostrarEstadoSuperior('success', '¡Contraseña actualizada con éxito! Ingresando a tu panel...', 0);
+
       setTimeout(() => {
-        navigate('/login');
-      }, 1500);
+        navigate('/');
+      }, 1800);
 
     } catch (err) {
-      mostrarToast(err.message, 'error');
+      mostrarEstadoSuperior('error', err.message, 5000);
     } finally {
       setCargando(false);
     }
@@ -93,11 +125,19 @@ export default function ResetPassword() {
           <p>Restablecimiento de Credenciales de Acceso</p>
         </div>
 
+        {/* AVISO INTEGRADO EN LA PARTE SUPERIOR DE LA TARJETA */}
+        {status.msg && (
+          <div className={`status-badge ${status.type}`}>
+            {status.type === 'success' ? '✓ ' : status.type === 'error' ? '✕ ' : ''}
+            {status.msg}
+          </div>
+        )}
+
         <form onSubmit={handleSubmit} className="login-form">
           <div className="form-group">
-            <label htmlFor="nuevaPassword">Nueva Contraseña:</label>
+            <label htmlFor="nuevaPassword">Nueva Contraseña</label>
             <div className="input-field">
-              <svg className="field-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" strokeWidth="2">
+              <svg className="field-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2">
                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
                 <path d="M7 11V7a5 5 0 0 1 10 0v4" />
               </svg>
@@ -106,7 +146,10 @@ export default function ResetPassword() {
                 id="nuevaPassword"
                 placeholder="••••••••"
                 value={nuevaPassword}
-                onChange={(e) => setNuevaPassword(e.target.value)}
+                onChange={(e) => {
+                  setNuevaPassword(e.target.value);
+                  limpiarEstadoAlEscribir();
+                }}
                 required
                 disabled={cargando}
               />
@@ -117,12 +160,12 @@ export default function ResetPassword() {
                 tabIndex="-1"
               >
                 {showPassword ? (
-                  <svg width="18" height="18" fill="none" strokeWidth="2" viewBox="0 0 24 24">
+                  <svg width="18" height="18" fill="none" stroke="#9ca3af" strokeWidth="2" viewBox="0 0 24 24">
                     <path d="M17.94 17.94A10.07 10.07 0 0112 19c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" />
                     <line x1="1" y1="1" x2="23" y2="23" />
                   </svg>
                 ) : (
-                  <svg width="18" height="18" fill="none" strokeWidth="2" viewBox="0 0 24 24">
+                  <svg width="18" height="18" fill="none" stroke="#9ca3af" strokeWidth="2" viewBox="0 0 24 24">
                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
                     <circle cx="12" cy="12" r="3" />
                   </svg>
@@ -132,9 +175,9 @@ export default function ResetPassword() {
           </div>
 
           <div className="form-group">
-            <label htmlFor="confirmarPassword">Confirmar Nueva Contraseña:</label>
+            <label htmlFor="confirmarPassword">Confirmar Nueva Contraseña</label>
             <div className="input-field">
-              <svg className="field-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" strokeWidth="2">
+              <svg className="field-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2">
                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
                 <path d="M7 11V7a5 5 0 0 1 10 0v4" />
               </svg>
@@ -143,7 +186,10 @@ export default function ResetPassword() {
                 id="confirmarPassword"
                 placeholder="••••••••"
                 value={confirmarPassword}
-                onChange={(e) => setConfirmarPassword(e.target.value)}
+                onChange={(e) => {
+                  setConfirmarPassword(e.target.value);
+                  limpiarEstadoAlEscribir();
+                }}
                 required
                 disabled={cargando}
               />
@@ -154,12 +200,12 @@ export default function ResetPassword() {
                 tabIndex="-1"
               >
                 {showConfirmPassword ? (
-                  <svg width="18" height="18" fill="none" strokeWidth="2" viewBox="0 0 24 24">
+                  <svg width="18" height="18" fill="none" stroke="#9ca3af" strokeWidth="2" viewBox="0 0 24 24">
                     <path d="M17.94 17.94A10.07 10.07 0 0112 19c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" />
                     <line x1="1" y1="1" x2="23" y2="23" />
                   </svg>
                 ) : (
-                  <svg width="18" height="18" fill="none" strokeWidth="2" viewBox="0 0 24 24">
+                  <svg width="18" height="18" fill="none" stroke="#9ca3af" strokeWidth="2" viewBox="0 0 24 24">
                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
                     <circle cx="12" cy="12" r="3" />
                   </svg>
@@ -180,42 +226,11 @@ export default function ResetPassword() {
             </p>
           </div>
 
-          <button type="submit" disabled={cargando} className="submit-btn submit-btn-green">
+          <button type="submit" disabled={cargando} className="submit-btn">
             {cargando ? 'ACTUALIZANDO...' : 'ACTUALIZAR CONTRASEÑA'}
-          </button>
-
-          <button
-            type="button"
-            className="forgot-password-link"
-            style={{ textAlign: 'center', width: '100%', marginTop: '6px' }}
-            onClick={() => navigate('/login')}
-          >
-            ← Volver al inicio de sesión
           </button>
         </form>
       </div>
-
-      {/* TOAST FLOTANTE ESTANDARIZADO */}
-      {notificacion.visible && (
-        <div style={{
-          position: 'fixed',
-          bottom: '24px',
-          right: '24px',
-          backgroundColor: notificacion.tipo === 'error' ? '#dc2626' : '#16a34a',
-          color: '#ffffff',
-          padding: '12px 20px',
-          borderRadius: '8px',
-          boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.15)',
-          zIndex: 9999,
-          fontSize: '0.85rem',
-          fontWeight: '700',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px'
-        }}>
-          <span>{notificacion.mensaje}</span>
-        </div>
-      )}
     </div>
   );
 }

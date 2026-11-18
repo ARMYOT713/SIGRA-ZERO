@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import './Login.css';
@@ -7,13 +7,13 @@ export const Login = () => {
   const [id, setId] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+  const [status, setStatus] = useState({ type: '', msg: '' });
   const [loading, setLoading] = useState(false);
 
-  // Estados de recuperación de contraseña
   const [vistaActiva, setVistaActiva] = useState('login'); // 'login' | 'recuperar' | 'setup_admin'
-  const [recoveryIdentifier, setRecoveryIdentifier] = useState('');
+  const [recoveryEmail, setRecoveryEmail] = useState('');
   const [recoveryLoading, setRecoveryLoading] = useState(false);
-  const [recoveryResult, setRecoveryResult] = useState(null);
+  const [recoverySent, setRecoverySent] = useState(false);
 
   // Estado para inicializar el primer Administrador cuando la BD está limpia (0 usuarios)
   const [requiereSetupInicial, setRequiereSetupInicial] = useState(false);
@@ -26,20 +26,30 @@ export const Login = () => {
   });
   const [creandoAdmin, setCreandoAdmin] = useState(false);
 
-  // Toast estandarizado en esquina inferior derecha
-  const [notificacion, setNotificacion] = useState({ visible: false, mensaje: '', tipo: 'exito' });
-
+  const timerRef = useRef(null);
   const { login } = useAuth();
   const navigate = useNavigate();
 
-  const mostrarToast = (mensaje, tipo = 'exito') => {
-    setNotificacion({ visible: true, mensaje, tipo });
-    setTimeout(() => {
-      setNotificacion(prev => ({ ...prev, visible: false }));
-    }, 4000);
+  // Función que muestra el estado arriba del formulario y borra los errores a los 5 segundos
+  const mostrarEstadoSuperior = (type, msg, autoHideMs = 5000) => {
+    if (timerRef.current) clearTimeout(timerRef.current);
+    setStatus({ type, msg });
+
+    if (type === 'error' && autoHideMs > 0) {
+      timerRef.current = setTimeout(() => {
+        setStatus({ type: '', msg: '' });
+      }, autoHideMs);
+    }
   };
 
-  // Verificar al cargar si el sistema no tiene ningún usuario registrado
+  // Limpia el aviso en cuanto el usuario vuelve a escribir en cualquier input
+  const limpiarEstadoAlEscribir = () => {
+    if (status.msg) {
+      if (timerRef.current) clearTimeout(timerRef.current);
+      setStatus({ type: '', msg: '' });
+    }
+  };
+
   useEffect(() => {
     const verificarEstadoInicial = async () => {
       try {
@@ -49,10 +59,14 @@ export const Login = () => {
           setRequiereSetupInicial(Boolean(data.requiereSetup));
         }
       } catch (err) {
-        // Silencioso si el endpoint aún no se ha desplegado
+        // Silencioso si el servidor está despertando
       }
     };
     verificarEstadoInicial();
+
+    return () => {
+      if (timerRef.current) clearTimeout(timerRef.current);
+    };
   }, []);
 
   const handleSubmit = async (e) => {
@@ -62,24 +76,30 @@ export const Login = () => {
     }
 
     setLoading(true);
+    mostrarEstadoSuperior('info', 'Verificando credenciales...', 0);
 
     try {
       const res = await login(id.trim(), password);
 
       if (res && res.success) {
-        mostrarToast('Acceso correcto. Entrando al sistema...');
+        mostrarEstadoSuperior('success', 'Acceso correcto. Entrando al sistema...', 0);
         setTimeout(() => {
           navigate('/');
-        }, 1000);
+        }, 1200);
       } else {
-        mostrarToast(res?.message || 'ID de usuario, correo o contraseña incorrectos.', 'error');
+        mostrarEstadoSuperior(
+          'error',
+          res?.message || 'ID de usuario, correo o contraseña incorrectos.',
+          5000
+        );
         setLoading(false);
       }
     } catch (err) {
       console.error('Error atrapado:', err);
-      mostrarToast(
-        err?.response?.data?.message || err?.message || 'Error al conectar con el servidor.',
-        'error'
+      mostrarEstadoSuperior(
+        'error',
+        err?.response?.data?.message || err?.message || 'ID de usuario, correo o contraseña incorrectos.',
+        5000
       );
       setLoading(false);
     }
@@ -88,31 +108,29 @@ export const Login = () => {
   const handleRecoverySubmit = async (e) => {
     e.preventDefault();
     setRecoveryLoading(true);
-    setRecoveryResult(null);
+    setStatus({ type: '', msg: '' });
 
     try {
       const response = await fetch('https://sigra-zero.onrender.com/api/auth/forgot-password', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ correo: recoveryIdentifier.trim() }),
+        body: JSON.stringify({ correo: recoveryEmail.trim() }),
       });
 
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        throw new Error(data.error || data.message || 'No se encontró una cuenta asociada a ese correo o ID.');
+        throw new Error(data.error || 'No se pudo enviar el correo de recuperación.');
       }
 
-      setRecoveryResult({
-        correoEnviado: Boolean(data.correoEnviado),
-        resetUrl: data.resetUrl || null,
-        token: data.token || null,
-        mensaje: data.message || 'Solicitud de recuperación procesada correctamente.'
-      });
-      mostrarToast('Solicitud de recuperación generada con éxito.');
+      setRecoverySent(true);
     } catch (err) {
       console.error('Error en recuperación:', err);
-      mostrarToast(err.message || 'Error al procesar la recuperación.', 'error');
+      mostrarEstadoSuperior(
+        'error',
+        err.message || 'Error al intentar enviar el correo.',
+        5000
+      );
     } finally {
       setRecoveryLoading(false);
     }
@@ -121,6 +139,7 @@ export const Login = () => {
   const handleSetupAdminSubmit = async (e) => {
     e.preventDefault();
     setCreandoAdmin(true);
+    setStatus({ type: '', msg: '' });
 
     try {
       const response = await fetch('https://sigra-zero.onrender.com/api/auth/setup-admin', {
@@ -140,12 +159,12 @@ export const Login = () => {
         throw new Error(data.error || 'No se pudo registrar el Administrador inicial.');
       }
 
-      mostrarToast('Administrador principal registrado con éxito.');
       setRequiereSetupInicial(false);
       setId(String(adminForm.id_usuario || '1'));
       setVistaActiva('login');
+      mostrarEstadoSuperior('success', 'Administrador principal registrado con éxito.', 4000);
     } catch (err) {
-      mostrarToast(err.message, 'error');
+      mostrarEstadoSuperior('error', err.message, 5000);
     } finally {
       setCreandoAdmin(false);
     }
@@ -165,14 +184,22 @@ export const Login = () => {
           <p>Sistema Integral de Geolocalización de Red de Acceso</p>
         </div>
 
+        {/* AVISO INTEGRADO EN LA PARTE SUPERIOR DE LA TARJETA */}
+        {status.msg && (
+          <div className={`status-badge ${status.type}`}>
+            {status.type === 'success' ? '✓ ' : status.type === 'error' ? '✕ ' : ''}
+            {status.msg}
+          </div>
+        )}
+
         {/* VISTA 1: LOGIN NORMAL */}
         {vistaActiva === 'login' && (
           <>
             <form onSubmit={handleSubmit} className="login-form">
               <div className="form-group">
-                <label htmlFor="userId">ID de Usuario o Correo Electrónico:</label>
+                <label htmlFor="userId">ID de Usuario o Correo Electrónico</label>
                 <div className="input-field">
-                  <svg className="field-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" strokeWidth="2">
+                  <svg className="field-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2">
                     <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2" />
                     <circle cx="12" cy="7" r="4" />
                   </svg>
@@ -181,7 +208,10 @@ export const Login = () => {
                     id="userId"
                     placeholder="Ej. 1 o correo@gmail.com"
                     value={id}
-                    onChange={(e) => setId(e.target.value)}
+                    onChange={(e) => {
+                      setId(e.target.value);
+                      limpiarEstadoAlEscribir();
+                    }}
                     required
                     disabled={loading}
                   />
@@ -189,9 +219,9 @@ export const Login = () => {
               </div>
 
               <div className="form-group">
-                <label htmlFor="password">Contraseña:</label>
+                <label htmlFor="password">Contraseña</label>
                 <div className="input-field">
-                  <svg className="field-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" strokeWidth="2">
+                  <svg className="field-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2">
                     <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
                     <path d="M7 11V7a5 5 0 0 1 10 0v4" />
                   </svg>
@@ -200,7 +230,10 @@ export const Login = () => {
                     id="password"
                     placeholder="••••••••"
                     value={password}
-                    onChange={(e) => setPassword(e.target.value)}
+                    onChange={(e) => {
+                      setPassword(e.target.value);
+                      limpiarEstadoAlEscribir();
+                    }}
                     required
                     disabled={loading}
                   />
@@ -211,12 +244,12 @@ export const Login = () => {
                     tabIndex="-1"
                   >
                     {showPassword ? (
-                      <svg width="18" height="18" fill="none" strokeWidth="2" viewBox="0 0 24 24">
+                      <svg width="18" height="18" fill="none" stroke="#9ca3af" strokeWidth="2" viewBox="0 0 24 24">
                         <path d="M17.94 17.94A10.07 10.07 0 0112 19c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" />
                         <line x1="1" y1="1" x2="23" y2="23" />
                       </svg>
                     ) : (
-                      <svg width="18" height="18" fill="none" strokeWidth="2" viewBox="0 0 24 24">
+                      <svg width="18" height="18" fill="none" stroke="#9ca3af" strokeWidth="2" viewBox="0 0 24 24">
                         <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
                         <circle cx="12" cy="12" r="3" />
                       </svg>
@@ -231,7 +264,8 @@ export const Login = () => {
                   className="forgot-password-link"
                   onClick={() => {
                     setVistaActiva('recuperar');
-                    setRecoveryResult(null);
+                    setRecoverySent(false);
+                    limpiarEstadoAlEscribir();
                   }}
                 >
                   ¿Olvidaste tu contraseña?
@@ -243,14 +277,16 @@ export const Login = () => {
               </button>
             </form>
 
-            {/* BANNER AUTOMÁTICO SOLO CUANDO LA BASE DE DATOS TIENE 0 USUARIOS */}
             {requiereSetupInicial && (
               <div className="bootstrap-banner">
                 <p>El sistema aún no cuenta con ningún usuario registrado.</p>
                 <button
                   type="button"
                   className="submit-btn submit-btn-green"
-                  onClick={() => setVistaActiva('setup_admin')}
+                  onClick={() => {
+                    setVistaActiva('setup_admin');
+                    limpiarEstadoAlEscribir();
+                  }}
                 >
                   + Registrar Administrador Principal
                 </button>
@@ -262,69 +298,57 @@ export const Login = () => {
         {/* VISTA 2: RECUPERACIÓN DE CONTRASEÑA */}
         {vistaActiva === 'recuperar' && (
           <div>
-            {!recoveryResult ? (
+            {!recoverySent ? (
               <form onSubmit={handleRecoverySubmit} className="login-form">
                 <div className="form-group">
-                  <label htmlFor="recoveryEmail">Correo Electrónico o ID de Usuario:</label>
+                  <label htmlFor="recoveryEmail">Correo Electrónico</label>
                   <div className="input-field input-no-icon">
                     <input
-                      type="text"
+                      type="email"
                       id="recoveryEmail"
-                      placeholder="Ej. correo@gmail.com o ID 1"
-                      value={recoveryIdentifier}
-                      onChange={(e) => setRecoveryIdentifier(e.target.value)}
+                      placeholder="correo@gmail.com"
+                      value={recoveryEmail}
+                      onChange={(e) => {
+                        setRecoveryEmail(e.target.value);
+                        limpiarEstadoAlEscribir();
+                      }}
                       required
                       disabled={recoveryLoading}
                     />
                   </div>
                 </div>
 
-                <button type="submit" className="submit-btn submit-btn-green" disabled={recoveryLoading}>
-                  {recoveryLoading ? 'PROCESANDO...' : 'RECUPERAR CONTRASEÑA'}
+                <button type="submit" className="submit-btn" disabled={recoveryLoading}>
+                  {recoveryLoading ? 'ENVIANDO...' : 'ENVIAR ENLACE'}
                 </button>
 
                 <button 
                   type="button" 
                   className="forgot-password-link" 
                   style={{ textAlign: 'center', width: '100%', marginTop: '8px' }}
-                  onClick={() => setVistaActiva('login')}
+                  onClick={() => {
+                    setVistaActiva('login');
+                    limpiarEstadoAlEscribir();
+                  }}
                 >
-                  ← Volver al inicio de sesión
+                  ← Volver al login
                 </button>
               </form>
             ) : (
               <div className="recovery-box">
-                <p style={{ fontWeight: '700', color: '#16a34a', margin: '0 0 6px 0' }}>
-                  ✓ {recoveryResult.mensaje}
-                </p>
-
-                {recoveryResult.correoEnviado ? (
-                  <p style={{ margin: '0 0 12px 0', color: '#475569' }}>
-                    Revisa tu bandeja de entrada o carpeta de spam para abrir el enlace de restablecimiento.
-                  </p>
-                ) : null}
-
-                {recoveryResult.token && (
-                  <button
-                    type="button"
-                    className="submit-btn submit-btn-green"
-                    style={{ marginBottom: '10px' }}
-                    onClick={() => navigate(`/reset-password?token=${recoveryResult.token}`)}
-                  >
-                    Continuar al Restablecimiento de Contraseña
-                  </button>
-                )}
-
+                <p style={{ fontWeight: 'bold', marginBottom: '6px' }}>¡Correo enviado con éxito!</p>
+                <p style={{ margin: 0 }}>Revisa tu bandeja para continuar con la recuperación.</p>
                 <button 
                   type="button" 
-                  className="forgot-password-link" 
-                  style={{ width: '100%', textAlign: 'center', marginTop: '6px' }}
+                  className="submit-btn" 
+                  style={{ marginTop: '14px' }}
                   onClick={() => {
                     setVistaActiva('login');
-                    setRecoveryResult(null);
+                    setRecoverySent(false);
+                    limpiarEstadoAlEscribir();
                   }}
                 >
-                  ← Regresar al Login
+                  Regresar
                 </button>
               </div>
             )}
@@ -336,24 +360,30 @@ export const Login = () => {
           <form onSubmit={handleSetupAdminSubmit} className="login-form">
             <div style={{ display: 'grid', gridTemplateColumns: '100px 1fr', gap: '10px' }}>
               <div className="form-group">
-                <label>ID Admin:</label>
+                <label>ID Admin</label>
                 <div className="input-field input-no-icon">
                   <input
                     type="text"
                     value={adminForm.id_usuario}
-                    onChange={(e) => setAdminForm({ ...adminForm, id_usuario: e.target.value.replace(/\D/g, '') })}
+                    onChange={(e) => {
+                      setAdminForm({ ...adminForm, id_usuario: e.target.value.replace(/\D/g, '') });
+                      limpiarEstadoAlEscribir();
+                    }}
                     required
                   />
                 </div>
               </div>
               <div className="form-group">
-                <label>Nombre Completo:</label>
+                <label>Nombre Completo</label>
                 <div className="input-field input-no-icon">
                   <input
                     type="text"
                     placeholder="Nombre del Administrador"
                     value={adminForm.nombre_completo}
-                    onChange={(e) => setAdminForm({ ...adminForm, nombre_completo: e.target.value })}
+                    onChange={(e) => {
+                      setAdminForm({ ...adminForm, nombre_completo: e.target.value });
+                      limpiarEstadoAlEscribir();
+                    }}
                     required
                   />
                 </div>
@@ -361,38 +391,47 @@ export const Login = () => {
             </div>
 
             <div className="form-group">
-              <label>Correo Electrónico:</label>
+              <label>Correo Electrónico</label>
               <div className="input-field input-no-icon">
                 <input
                   type="email"
                   placeholder="admin@winfored.com"
                   value={adminForm.correo}
-                  onChange={(e) => setAdminForm({ ...adminForm, correo: e.target.value })}
+                  onChange={(e) => {
+                    setAdminForm({ ...adminForm, correo: e.target.value });
+                    limpiarEstadoAlEscribir();
+                  }}
                   required
                 />
               </div>
             </div>
 
             <div className="form-group">
-              <label>Teléfono:</label>
+              <label>Teléfono</label>
               <div className="input-field input-no-icon">
                 <input
                   type="text"
                   placeholder="7120000000"
                   value={adminForm.telefono}
-                  onChange={(e) => setAdminForm({ ...adminForm, telefono: e.target.value })}
+                  onChange={(e) => {
+                    setAdminForm({ ...adminForm, telefono: e.target.value });
+                    limpiarEstadoAlEscribir();
+                  }}
                 />
               </div>
             </div>
 
             <div className="form-group">
-              <label>Contraseña:</label>
+              <label>Contraseña</label>
               <div className="input-field input-no-icon">
                 <input
                   type="password"
                   placeholder="Contraseña de acceso"
                   value={adminForm.password}
-                  onChange={(e) => setAdminForm({ ...adminForm, password: e.target.value })}
+                  onChange={(e) => {
+                    setAdminForm({ ...adminForm, password: e.target.value });
+                    limpiarEstadoAlEscribir();
+                  }}
                   required
                 />
               </div>
@@ -406,7 +445,10 @@ export const Login = () => {
               type="button"
               className="forgot-password-link"
               style={{ textAlign: 'center', width: '100%' }}
-              onClick={() => setVistaActiva('login')}
+              onClick={() => {
+                setVistaActiva('login');
+                limpiarEstadoAlEscribir();
+              }}
             >
               ← Cancelar
             </button>
@@ -414,28 +456,6 @@ export const Login = () => {
         )}
 
       </div>
-
-      {/* TOAST FLOTANTE ESTANDARIZADO */}
-      {notificacion.visible && (
-        <div style={{
-          position: 'fixed',
-          bottom: '24px',
-          right: '24px',
-          backgroundColor: notificacion.tipo === 'error' ? '#dc2626' : '#16a34a',
-          color: '#ffffff',
-          padding: '12px 20px',
-          borderRadius: '8px',
-          boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.15)',
-          zIndex: 9999,
-          fontSize: '0.85rem',
-          fontWeight: '700',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px'
-        }}>
-          <span>{notificacion.mensaje}</span>
-        </div>
-      )}
     </div>
   );
 };
