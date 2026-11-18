@@ -1,8 +1,10 @@
+// backend/src/services/email.service.js
 async function sendEmail({ to, subject, html }) {
   const BREVO_API_KEY = process.env.BREVO_API_KEY;
+  const SENDER_EMAIL = process.env.BREVO_SENDER_EMAIL;
 
-  if (!BREVO_API_KEY) {
-    throw new Error("Falta configurar la variable de entorno BREVO_API_KEY en el servidor de Render.");
+  if (!BREVO_API_KEY || !SENDER_EMAIL) {
+    throw new Error("Falta configurar BREVO_API_KEY o BREVO_SENDER_EMAIL en Render.");
   }
 
   const response = await fetch('https://api.brevo.com/v3/smtp/email', {
@@ -15,7 +17,7 @@ async function sendEmail({ to, subject, html }) {
     body: JSON.stringify({
       sender: { 
         name: "SIGRA - Red Winfored", 
-        email: "no-reply@sigrawinfored.com" 
+        email: SENDER_EMAIL
       },
       to: [{ email: to }],
       subject: subject,
@@ -25,7 +27,7 @@ async function sendEmail({ to, subject, html }) {
 
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
-    throw new Error(errorData.message || 'Error al enviar el correo mediante la API de Brevo.');
+    throw new Error(errorData.message || 'Error al enviar el correo con Brevo.');
   }
 
   return await response.json();
