@@ -12,6 +12,7 @@ function Usuarios() {
   const [notificacion, setNotificacion] = useState({ visible: false, mensaje: '', tipo: 'exito' });
 
   const [form, setForm] = useState({
+    id_usuario: '',
     nombre_completo: '',
     correo: '',
     rol: 'SOPORTE_TECNICO',
@@ -40,7 +41,10 @@ function Usuarios() {
         headers: obtenerHeaders()
       });
       const data = await response.json();
-      setUsuarios(Array.isArray(data) ? data : []);
+      const listaOrdenada = (Array.isArray(data) ? data : []).sort(
+        (a, b) => Number(a.id_usuario) - Number(b.id_usuario)
+      );
+      setUsuarios(listaOrdenada);
     } catch (error) {
       console.error('Error al cargar los usuarios:', error);
     }
@@ -50,10 +54,28 @@ function Usuarios() {
     obtenerUsuarios();
   }, []);
 
+  // Calcula el primer ID numérico disponible (ej. si existen 1, 16, 17 -> sugiere el 2)
+  const calcularSiguienteIdDisponible = () => {
+    const idsOcupados = new Set(usuarios.map(u => Number(u.id_usuario)));
+    let candidato = 1;
+    while (idsOcupados.has(candidato)) {
+      candidato++;
+    }
+    return String(candidato);
+  };
+
   const abrirModalCrear = () => {
     setModoEdicion(false);
     setMostrarPassword(false);
-    setForm({ nombre_completo: '', correo: '', rol: 'SOPORTE_TECNICO', password: '', telefono: '' });
+    const idSugerido = calcularSiguienteIdDisponible();
+    setForm({
+      id_usuario: idSugerido,
+      nombre_completo: '',
+      correo: '',
+      rol: 'SOPORTE_TECNICO',
+      password: '',
+      telefono: ''
+    });
     setModalAbierto(true);
   };
 
@@ -62,12 +84,13 @@ function Usuarios() {
     setModoEdicion(true);
     setMostrarPassword(false);
     setElementoSeleccionado(item);
-    setForm({ 
-      nombre_completo: item.nombre_completo, 
-      correo: item.correo || '', 
-      rol: item.rol, 
-      password: '', 
-      telefono: item.telefono || '' 
+    setForm({
+      id_usuario: String(item.id_usuario),
+      nombre_completo: item.nombre_completo,
+      correo: item.correo || '',
+      rol: item.rol,
+      password: '',
+      telefono: item.telefono || ''
     });
     setModalAbierto(true);
   };
@@ -80,16 +103,40 @@ function Usuarios() {
 
   const handleGuardar = async (e) => {
     e.preventDefault();
+
+    const idNum = Number(form.id_usuario);
+    if (!idNum || idNum <= 0) {
+      mostrarAlertaFlotante("El ID de usuario debe ser un número entero mayor a 0.", "error");
+      return;
+    }
+
+    const idDuplicado = usuarios.some(u => {
+      if (modoEdicion && elementoSeleccionado && Number(u.id_usuario) === Number(elementoSeleccionado.id_usuario)) {
+        return false;
+      }
+      return Number(u.id_usuario) === idNum;
+    });
+
+    if (idDuplicado) {
+      mostrarAlertaFlotante(`El ID ${idNum} ya está ocupado por otro usuario.`, "error");
+      return;
+    }
+
+    const payload = {
+      ...form,
+      id_usuario: idNum
+    };
+
     try {
       if (modoEdicion) {
         const response = await fetch(`https://sigra-zero.onrender.com/api/usuarios/${elementoSeleccionado.id_usuario}`, {
           method: 'PUT',
           headers: obtenerHeaders(),
-          body: JSON.stringify(form)
+          body: JSON.stringify(payload)
         });
         if (response.ok) {
           setModalAbierto(false);
-          mostrarAlertaFlotante("Datos actualizados con éxito.");
+          mostrarAlertaFlotante("Usuario actualizado con éxito.");
           obtenerUsuarios();
         } else {
           const errorData = await response.json().catch(() => ({}));
@@ -99,11 +146,11 @@ function Usuarios() {
         const response = await fetch('https://sigra-zero.onrender.com/api/usuarios', {
           method: 'POST',
           headers: obtenerHeaders(),
-          body: JSON.stringify(form)
+          body: JSON.stringify(payload)
         });
         if (response.ok) {
           setModalAbierto(false);
-          mostrarAlertaFlotante("Registro exitoso.");
+          mostrarAlertaFlotante("Usuario registrado con éxito.");
           obtenerUsuarios();
         } else {
           const errorData = await response.json().catch(() => ({}));
@@ -125,7 +172,7 @@ function Usuarios() {
       if (response.ok) {
         setModalEliminar(false);
         setElementoSeleccionado(null);
-        mostrarAlertaFlotante("Usuario eliminado con éxito del sistema.");
+        mostrarAlertaFlotante("Usuario eliminado con éxito.");
         obtenerUsuarios();
       } else {
         const errorData = await response.json().catch(() => ({}));
@@ -194,7 +241,7 @@ function Usuarios() {
                       backgroundColor: filaExpandida === item.id_usuario ? '#f8fafc' : 'transparent'
                     }}
                   >
-                    <td style={{ padding: '12px 16px', color: '#64748b', fontWeight: '600' }}>{item.id_usuario}</td>
+                    <td style={{ padding: '12px 16px', color: '#0f172a', fontWeight: '700' }}>{item.id_usuario}</td>
                     <td style={{ padding: '12px 16px', fontWeight: '600', color: '#0f172a' }}>{item.nombre_completo}</td>
                     <td style={{ padding: '12px 16px', color: '#475569' }}>{item.correo || 'No registrado'}</td>
                     <td style={{ padding: '12px 16px' }}>
@@ -256,21 +303,34 @@ function Usuarios() {
       {/* MODAL CREAR / EDITAR USUARIO */}
       {modalAbierto && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 3000 }}>
-          <div style={{ backgroundColor: '#ffffff', padding: '24px 28px', borderRadius: '10px', width: '420px', boxShadow: '0 10px 25px rgba(0,0,0,0.15)', color: '#1e293b', border: '1px solid #e2e8f0' }}>
+          <div style={{ backgroundColor: '#ffffff', padding: '24px 28px', borderRadius: '10px', width: '440px', boxShadow: '0 10px 25px rgba(0,0,0,0.15)', color: '#1e293b', border: '1px solid #e2e8f0' }}>
             <h3 style={{ margin: '0 0 16px 0', fontSize: '1.05rem', color: '#0f172a', borderBottom: '1px solid #e2e8f0', paddingBottom: '10px' }}>
               {modoEdicion ? 'Editar Usuario' : 'Registrar Nuevo Usuario'}
             </h3>
 
             <form onSubmit={handleGuardar} style={{ display: 'flex', flexDirection: 'column', gap: '14px' }}>
-              <div>
-                <label style={{ fontSize: '0.75rem', color: '#64748b', display: 'block', marginBottom: '4px', fontWeight: '600' }}>Nombre Completo:</label>
-                <input 
-                  type="text" 
-                  required
-                  value={form.nombre_completo}
-                  onChange={(e) => setForm({...form, nombre_completo: e.target.value})}
-                  style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.85rem', boxSizing: 'border-box', outline: 'none' }}
-                />
+              <div style={{ display: 'grid', gridTemplateColumns: '110px 1fr', gap: '12px' }}>
+                <div>
+                  <label style={{ fontSize: '0.75rem', color: '#0369a1', display: 'block', marginBottom: '4px', fontWeight: '700' }}>ID Usuario:</label>
+                  <input 
+                    type="number" 
+                    min="1"
+                    required
+                    value={form.id_usuario}
+                    onChange={(e) => setForm({...form, id_usuario: e.target.value})}
+                    style={{ width: '100%', padding: '9px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#f8fafc', color: '#0f172a', fontSize: '0.85rem', fontWeight: '700', boxSizing: 'border-box', outline: 'none' }}
+                  />
+                </div>
+                <div>
+                  <label style={{ fontSize: '0.75rem', color: '#64748b', display: 'block', marginBottom: '4px', fontWeight: '600' }}>Nombre Completo:</label>
+                  <input 
+                    type="text" 
+                    required
+                    value={form.nombre_completo}
+                    onChange={(e) => setForm({...form, nombre_completo: e.target.value})}
+                    style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.85rem', boxSizing: 'border-box', outline: 'none' }}
+                  />
+                </div>
               </div>
 
               <div>
