@@ -10,14 +10,6 @@
   font-family: 'Segoe UI', sans-serif;
 }
 
-.resumen-header-top {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 12px;
-}
-
 .resumen-header {
   margin-bottom: 4px;
 }
@@ -44,22 +36,6 @@
   margin: 6px 0 0 0;
 }
 
-.btn-actualizar-resumen {
-  background-color: #16a34a;
-  color: #ffffff;
-  border: none;
-  padding: 9px 18px;
-  border-radius: 6px;
-  font-size: 0.82rem;
-  font-weight: 700;
-  cursor: pointer;
-}
-
-.btn-actualizar-resumen:disabled {
-  background-color: #94a3b8;
-  cursor: not-allowed;
-}
-
 .resumen-error {
   padding: 10px 14px;
   background-color: #fee2e2;
@@ -69,20 +45,19 @@
   font-weight: 600;
 }
 
-/* FILA HORIZONTAL DE TARJETAS LADO A LADO */
+/* 4 TARJETAS LADO A LADO EN UNA SOLA FILA */
 .kpi-grid-horizontal {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(210px, 1fr));
-  gap: 16px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 18px;
   width: 100%;
   align-items: stretch;
 }
 
-/* TARJETA ESTANDARIZADA */
 .kpi-card-extended {
   background: #ffffff;
-  padding: 22px 18px;
-  border-radius: 10px;
+  padding: 24px 20px;
+  border-radius: 12px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.04);
   border: 1px solid #e2e8f0;
   border-top: 4px solid #16a34a;
@@ -91,7 +66,7 @@
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  min-height: 400px;
+  min-height: 410px;
   box-sizing: border-box;
 }
 
@@ -118,7 +93,7 @@
 }
 
 .kpi-main-number {
-  font-size: 2.4rem;
+  font-size: 2.5rem;
   font-weight: 700;
   color: #0f172a;
   margin-top: 4px;
@@ -129,7 +104,6 @@
   color: #dc2626;
 }
 
-/* ESTADOS EN LISTA VERTICAL */
 .kpi-status-group {
   display: flex;
   flex-direction: column;
@@ -150,7 +124,6 @@
 .pill-inactive { color: #64748b; }
 .pill-warning { color: #d97706; }
 .pill-danger { color: #dc2626; }
-.pill-info { color: #0284c7; }
 
 .subtext-alerta {
   color: #dc2626;
@@ -165,7 +138,6 @@
   margin: 10px 0;
 }
 
-/* DETALLES DE LOCALIDAD */
 .kpi-subcontent {
   flex: 1;
   display: flex;
@@ -221,7 +193,6 @@
   font-style: italic;
 }
 
-/* LISTA DE SOPORTES EN RESUMEN DE REPORTES */
 .soporte-resumen-row {
   display: flex;
   justify-content: space-between;

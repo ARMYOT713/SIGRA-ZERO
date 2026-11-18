@@ -20,36 +20,26 @@ function Resumen() {
     clientesCancelados: 0,
     clientesPorLocalidad: {},
 
-    onusTotales: 0,
-    onusActivas: 0,
-    onusDesactivadas: 0,
-    onusMantenimiento: 0,
-    onusPorLocalidad: {},
-
     reportesPendientesTotales: 0,
     reportesCompletadosTotales: 0,
     resumenSoportes: []
   });
 
-  const [cargando, setCargando] = useState(false);
+  const [cargando, setCargando] = useState(true);
   const [error, setError] = useState('');
-  const [notificacion, setNotificacion] = useState({ visible: false, mensaje: '', tipo: 'exito' });
 
   const navigate = useNavigate();
 
-  const mostrarAlertaFlotante = (mensaje, tipo = 'exito') => {
-    setNotificacion({ visible: true, mensaje, tipo });
-    setTimeout(() => {
-      setNotificacion(prev => ({ ...prev, visible: false }));
-    }, 4000);
-  };
-
   useEffect(() => {
-    cargarDatosResumen(false);
+    cargarDatosResumen(true);
+    const intervalo = setInterval(() => {
+      cargarDatosResumen(false);
+    }, 15000);
+    return () => clearInterval(intervalo);
   }, []);
 
-  const cargarDatosResumen = async (mostrarToastConfirmacion = false) => {
-    setCargando(true);
+  const cargarDatosResumen = async (mostrarCargaInicial = false) => {
+    if (mostrarCargaInicial) setCargando(true);
     try {
       const token = localStorage.getItem('token');
       const headers = {
@@ -108,10 +98,9 @@ function Resumen() {
         napsLoc[loc] = (napsLoc[loc] || 0) + 1;
       });
 
-      // 3. Separar Clientes reales y ONUs (misma lógica que Dispositivos.jsx)
+      // 3. Clientes (excluyendo ONUs para que el conteo coincida con la pestaña Clientes)
       const listaClientesCruda = Array.isArray(dataClientes) ? dataClientes : (dataClientes.clientes || []);
       const listaClientesReales = listaClientesCruda.filter(c => !esOnuDetectada(c));
-      const listaOnusReales = listaClientesCruda.filter(c => esOnuDetectada(c));
 
       let cliAct = 0, cliSusp = 0, cliCanc = 0;
       const cliLoc = {};
@@ -125,20 +114,7 @@ function Resumen() {
         cliLoc[loc] = (cliLoc[loc] || 0) + 1;
       });
 
-      // 4. ONUs
-      let onuAct = 0, onuDesact = 0, onuMant = 0;
-      const onuLoc = {};
-      listaOnusReales.forEach(o => {
-        const estadoStr = String(o.estado || (o.estatus === false ? 'DESACTIVADO' : 'ACTIVO')).toUpperCase();
-        if (estadoStr.includes('MANT')) onuMant++;
-        else if (estadoStr.includes('DESACT') || estadoStr.includes('INACT')) onuDesact++;
-        else onuAct++;
-
-        const loc = obtenerLocalidad(o);
-        onuLoc[loc] = (onuLoc[loc] || 0) + 1;
-      });
-
-      // 5. Reportes
+      // 4. Reportes
       let pendientesCount = 0;
       let completadosCount = 0;
       const conteoPorSoporte = {};
@@ -177,54 +153,32 @@ function Resumen() {
         clientesCancelados: cliCanc,
         clientesPorLocalidad: cliLoc,
 
-        onusTotales: listaOnusReales.length,
-        onusActivas: onuAct,
-        onusDesactivadas: onuDesact,
-        onusMantenimiento: onuMant,
-        onusPorLocalidad: onuLoc,
-
         reportesPendientesTotales: pendientesCount,
         reportesCompletadosTotales: completadosCount,
         resumenSoportes: listaResumenSoportes
       });
 
       setError('');
-      if (mostrarToastConfirmacion) {
-        mostrarAlertaFlotante('Indicadores actualizados en tiempo real.');
-      }
     } catch (err) {
       console.error('Error al cargar datos del resumen:', err);
       setError('No se pudo conectar con la base de datos de SIGRA.');
-      if (mostrarToastConfirmacion) {
-        mostrarAlertaFlotante('Error al sincronizar los indicadores.', 'error');
-      }
     } finally {
-      setCargando(false);
+      if (mostrarCargaInicial) setCargando(false);
     }
   };
 
   return (
     <div className="resumen-container">
-      {/* CABECERA ESTANDARIZADA */}
-      <div className="resumen-header-top">
-        <div className="resumen-header">
-          <h2>Resumen Global de Red</h2>
-          <div className="resumen-header-line"></div>
-          <p>Indicadores clave de infraestructura y soporte técnico en tiempo real.</p>
-        </div>
-
-        <button
-          onClick={() => cargarDatosResumen(true)}
-          disabled={cargando}
-          className="btn-actualizar-resumen"
-        >
-          {cargando ? 'Actualizando...' : 'Actualizar Indicadores'}
-        </button>
+      {/* CABECERA */}
+      <div className="resumen-header">
+        <h2>Resumen Global de Red</h2>
+        <div className="resumen-header-line"></div>
+        <p>Indicadores clave de infraestructura y soporte técnico en tiempo real.</p>
       </div>
 
       {error && <div className="resumen-error">{error}</div>}
 
-      {/* CONTENEDOR DE TARJETAS HORIZONTALES */}
+      {/* CONTENEDOR DE 4 TARJETAS HORIZONTALES */}
       <div className="kpi-grid-horizontal">
         
         {/* TARJETA 1: POSTES */}
@@ -321,52 +275,20 @@ function Resumen() {
           </div>
         </div>
 
-        {/* TARJETA 4: EQUIPOS ONU */}
-        <div className="kpi-card-extended" onClick={() => navigate('/dispositivos?filtro=onus')}>
-          <div className="kpi-header-block">
-            <span className="kpi-title">ONUS</span>
-            <div className="kpi-main-number">{cargando ? '...' : metricas.onusTotales}</div>
-          </div>
-
-          <div className="kpi-status-group status-column">
-            <div><span className="pill-active">● ACTIVAS: {metricas.onusActivas}</span></div>
-            <div><span className="pill-info">● MANTENIMIENTO: {metricas.onusMantenimiento}</span></div>
-            <div><span className="pill-danger">● DESACTIVADAS: {metricas.onusDesactivadas}</span></div>
-          </div>
-
-          <div className="kpi-section-divider"></div>
-
-          <div className="kpi-subcontent">
-            <span className="kpi-subtitle">Distribución por Localidad:</span>
-            <div className="localidades-scroll-list">
-              {Object.keys(metricas.onusPorLocalidad).length > 0 ? (
-                Object.entries(metricas.onusPorLocalidad).map(([loc, cnt]) => (
-                  <div key={loc} className="loc-row">
-                    <span className="loc-badge">{loc}</span>
-                    <strong className="loc-count">{cnt}</strong>
-                  </div>
-                ))
-              ) : (
-                <span className="no-data">Sin registros</span>
-              )}
-            </div>
-          </div>
-        </div>
-
-        {/* TARJETA 5: REPORTES / SOPORTE PENDIENTE */}
+        {/* TARJETA 4: REPORTES / SOPORTE PENDIENTE */}
         <div 
           className="kpi-card-extended alerta" 
           onClick={() => navigate('/reportes?filtro=PENDIENTES')}
         >
           <div className="kpi-header-block">
-            <span className="kpi-title">REPORTES PENDIENTES</span>
+            <span className="kpi-title">REPORTES / SOPORTE PENDIENTE</span>
             <div className="kpi-main-number alerta">
               {cargando ? '...' : metricas.reportesPendientesTotales}
             </div>
           </div>
 
           <div className="kpi-status-group status-column">
-            <div><span className="subtext-alerta">● EN CAMPO: {metricas.reportesPendientesTotales}</span></div>
+            <div><span className="subtext-alerta">● ATENCIONES EN CAMPO: {metricas.reportesPendientesTotales}</span></div>
             <div><span className="pill-active">● COMPLETADOS: {metricas.reportesCompletadosTotales}</span></div>
           </div>
 
@@ -378,7 +300,7 @@ function Resumen() {
               {metricas.resumenSoportes.length > 0 ? (
                 metricas.resumenSoportes.map((sop, idx) => (
                   <div key={idx} className="soporte-resumen-row">
-                    <span className="soporte-tag">{sop.nombre.toUpperCase()}</span>
+                    <span className="soporte-tag">Soporte: {sop.nombre.toUpperCase()}</span>
                     <strong className={sop.pendientes > 0 ? 'cant-pendiente' : 'cant-cero'}>
                       {sop.pendientes} PEND.
                     </strong>
@@ -392,28 +314,6 @@ function Resumen() {
         </div>
 
       </div>
-
-      {/* TOAST FLOTANTE ESTANDARIZADO EN ESQUINA INFERIOR DERECHA */}
-      {notificacion.visible && (
-        <div style={{
-          position: 'fixed',
-          bottom: '24px',
-          right: '24px',
-          backgroundColor: notificacion.tipo === 'error' ? '#dc2626' : '#16a34a',
-          color: '#ffffff',
-          padding: '12px 20px',
-          borderRadius: '8px',
-          boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
-          zIndex: 9999,
-          fontSize: '0.85rem',
-          fontWeight: '700',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '8px'
-        }}>
-          <span>{notificacion.mensaje}</span>
-        </div>
-      )}
     </div>
   );
 }
