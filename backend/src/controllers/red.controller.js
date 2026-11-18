@@ -17,11 +17,13 @@ const obtenerPostes = async (req, res) => {
 
 const crearPoste = async (req, res) => {
   try {
-    const { codigo, latitud, longitud, fecha_instalacion, archivo_kmz } = req.body;
+    const { codigo, localidad, estado, latitud, longitud, fecha_instalacion, archivo_kmz } = req.body;
     
     const nuevoPoste = await prisma.postes.create({
       data: {
         codigo,
+        localidad: localidad ? localidad.trim().toUpperCase().replace(/-/g, '_') : 'MX_B1',
+        estado: estado || 'ACTIVO',
         latitud: parseFloat(latitud),
         longitud: parseFloat(longitud),
         fecha_instalacion: fecha_instalacion ? new Date(fecha_instalacion) : new Date(),
@@ -38,11 +40,12 @@ const crearPoste = async (req, res) => {
 const actualizarPoste = async (req, res) => {
   try {
     const { id } = req.params;
-    const { codigo, latitud, longitud, estado } = req.body;
+    const { codigo, localidad, latitud, longitud, estado } = req.body;
     const posteActualizado = await prisma.postes.update({
       where: { poste_id: Number(id) },
       data: {
         codigo,
+        localidad: localidad ? localidad.trim().toUpperCase().replace(/-/g, '_') : undefined,
         latitud: latitud ? parseFloat(latitud) : undefined,
         longitud: longitud ? parseFloat(longitud) : undefined,
         estado
@@ -461,15 +464,15 @@ const obtenerReportes = async (req, res) => {
             }
           }
         },
+        onu: true,
         nap: {
           include: {
-            poste: true,
-            // si tienes una relación directa o inversa de puertos/naps
+            poste: true
           }
         },
         poste: {
           include: {
-            naps: true // Si un poste tiene cajas NAP asociadas
+            naps: true
           }
         }
       },
@@ -508,7 +511,12 @@ const crearReporte = async (req, res) => {
     if (tipoLower === 'cliente' || tipoLower === 'modem / cliente') {
       id_cliente = idNum;
     } else if (tipoLower === 'onu') {
-      id_onus = idNum;
+      const existeEnTablaOnus = idNum ? await prisma.oNUS.findUnique({ where: { id_onus: idNum } }) : null;
+      if (existeEnTablaOnus) {
+        id_onus = idNum;
+      } else {
+        id_cliente = idNum;
+      }
     } else if (tipoLower === 'nap') {
       id_nap = idNum;
     } else if (tipoLower === 'poste') {
@@ -542,7 +550,6 @@ const crearReporte = async (req, res) => {
     res.status(500).json({ error: 'Error al crear el reporte', detalle: error.message });
   }
 };
-
 const actualizarEstatusReporte = async (req, res) => {
   try {
     const { id } = req.params;

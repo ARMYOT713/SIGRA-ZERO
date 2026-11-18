@@ -9,16 +9,20 @@ function ReporteFallas() {
   const [filtroEstatus, setFiltroEstatus] = useState(filtroInicial); 
   const [reportes, setReportes] = useState([]);
   const [clientes, setClientes] = useState([]);
+  const [onus, setOnus] = useState([]);
   const [naps, setNaps] = useState([]);
   const [postes, setPostes] = useState([]);
   const [tecnicosSoporte, setTecnicosSoporte] = useState([]);
   const [cargando, setCargando] = useState(false);
   const [error, setError] = useState("");
+  const [filaExpandida, setFilaExpandida] = useState(null);
   
-  const [toastMensaje, setToastMensaje] = useState("");
+  const [notificacion, setNotificacion] = useState({ visible: false, mensaje: "", tipo: "exito" });
 
   const [idReporteEditando, setIdReporteEditando] = useState(null);
   const [reporteAEliminar, setReporteAEliminar] = useState(null);
+  const [reporteAResolver, setReporteAResolver] = useState(null);
+  const [comentarioSolucion, setComentarioSolucion] = useState("");
 
   const [nuevoReporte, setNuevoReporte] = useState({
     tipo_elemento: "cliente",
@@ -46,11 +50,28 @@ function ReporteFallas() {
     cargarDatosReales();
   }, []);
 
-  const mostrarToast = (mensaje) => {
-    setToastMensaje(mensaje);
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setMostrarDropdownElemento(false);
+      }
+    };
+    document.addEventListener("mousedown", handleClickOutside);
+    return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, []);
+
+  const mostrarToast = (mensaje, tipo = "exito") => {
+    setNotificacion({ visible: true, mensaje, tipo });
     setTimeout(() => {
-      setToastMensaje("");
+      setNotificacion(prev => ({ ...prev, visible: false }));
     }, 4000);
+  };
+
+  const esDispositivoOnu = (item) => {
+    if (!item) return false;
+    const tipoUpper = String(item.tipo || "").toUpperCase();
+    const codigoUpper = String(item.cliente_ref || item.codigo || "").toUpperCase();
+    return tipoUpper === "ONU" || item.es_onu === true || codigoUpper.includes("ONU");
   };
 
   const cargarDatosReales = async () => {
@@ -58,7 +79,7 @@ function ReporteFallas() {
     try {
       const token = localStorage.getItem("token");
 
-      const [resReportes, resClientes, resNaps, resPostes, resUsuarios] = await Promise.all([
+      const [resReportes, resClientes, resNaps, resPostes, resUsuarios, resOnusTabla] = await Promise.all([
         fetch("https://sigra-zero.onrender.com/api/red/reportes", {
           headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }
         }).then(res => res.json()),
@@ -77,11 +98,29 @@ function ReporteFallas() {
 
         fetch("https://sigra-zero.onrender.com/api/usuarios", {
           headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }
+        }).then(res => res.json()).catch(() => []),
+
+        fetch("https://sigra-zero.onrender.com/api/red/onus", {
+          headers: { "Content-Type": "application/json", "Authorization": `Bearer ${token}` }
         }).then(res => res.json()).catch(() => [])
       ]);
 
+      const listaClientesRaw = Array.isArray(resClientes) ? resClientes : [];
+      const clientesReales = listaClientesRaw.filter(c => !esDispositivoOnu(c));
+      const onusDesdeClientes = listaClientesRaw.filter(c => esDispositivoOnu(c));
+      const onusDesdeTabla = Array.isArray(resOnusTabla) ? resOnusTabla : [];
+
+      const mapaOnusUnificadas = new Map();
+      [...onusDesdeClientes, ...onusDesdeTabla].forEach(o => {
+        const clave = String(o.id_cliente || o.id_onus || o.id);
+        if (!mapaOnusUnificadas.has(clave)) {
+          mapaOnusUnificadas.set(clave, o);
+        }
+      });
+
       setReportes(Array.isArray(resReportes) ? resReportes : []);
-      setClientes(Array.isArray(resClientes) ? resClientes : []);
+      setClientes(clientesReales);
+      setOnus(Array.from(mapaOnusUnificadas.values()));
       setNaps(Array.isArray(resNaps) ? resNaps : []);
       setPostes(Array.isArray(resPostes) ? resPostes : []);
       setTecnicosSoporte(Array.isArray(resUsuarios) ? resUsuarios : []);
@@ -99,6 +138,7 @@ function ReporteFallas() {
     let fallaDefault = "Atenuación alta / Pérdida de señal (ONU)";
     if (nuevoTipo === "nap") fallaDefault = "Saturación de puertos / Conector dañado en NAP";
     if (nuevoTipo === "poste") fallaDefault = "Daño físico en estructura del poste";
+    if (nuevoTipo === "onu") fallaDefault = "Pérdida de potencia óptica / Nivel PON fuera de rango";
 
     setNuevoReporte({
       ...nuevoReporte,
@@ -128,13 +168,25 @@ function ReporteFallas() {
   };
 
   const prepararEdicionReporte = (rep) => {
-    const tipoElem = rep.tipo_elemento || (rep.cliente_id ? "cliente" : rep.nap_id ? "nap" : "poste");
-    const idElem = rep.cliente_id || rep.nap_id || rep.poste_id || rep.id_elemento || "";
+    const tipoRaw = (rep.tipo_elemento || "").toLowerCase();
+    let tipoElem = "cliente";
+    if (tipoRaw.includes("onu") || rep.id_onus || esDispositivoOnu(rep.cliente)) {
+      tipoElem = "onu";
+    } else if (tipoRaw.includes("nap") || rep.id_nap || rep.nap_id) {
+      tipoElem = "nap";
+    } else if (tipoRaw.includes("poste") || rep.id_poste || rep.poste_id) {
+      tipoElem = "poste";
+    }
+
+    const idElem = rep.id_onus || rep.id_cliente || rep.cliente_id || rep.id_nap || rep.nap_id || rep.id_poste || rep.poste_id || rep.id_elemento || "";
     
     let nombreElem = "";
     if (tipoElem === "cliente") {
       const cli = clientes.find(c => String(c.id_cliente || c.id) === String(idElem));
       nombreElem = cli?.nombre_completo || cli?.cliente_ref || rep.cliente?.nombre_completo || "";
+    } else if (tipoElem === "onu") {
+      const onuObj = onus.find(o => String(o.id_cliente || o.id_onus || o.id) === String(idElem));
+      nombreElem = onuObj?.cliente_ref || onuObj?.codigo || rep.onu?.codigo || rep.cliente?.cliente_ref || "";
     } else if (tipoElem === "nap") {
       const nap = naps.find(n => String(n.id_nap || n.id) === String(idElem));
       nombreElem = nap?.codigo_nap || nap?.codigo || rep.nap?.codigo_nap || "";
@@ -161,9 +213,16 @@ function ReporteFallas() {
 
   const clientesFiltrados = clientes.filter(c => {
     const termino = busquedaElemento.toLowerCase();
-    const nombre = (c.nombre_completo || c.cliente_ref || "").toLowerCase();
+    const nombre = (c.nombre_completo || c.cliente_ref || c.codigo || "").toLowerCase();
     const sigla = (c.localidad || c.siglas || c.barrio || "").toLowerCase();
     return nombre.includes(termino) || sigla.includes(termino);
+  });
+
+  const onusFiltradas = onus.filter(o => {
+    const termino = busquedaElemento.toLowerCase();
+    const codigo = (o.cliente_ref || o.codigo || o.nombre_completo || "").toLowerCase();
+    const sigla = (o.localidad || "").toLowerCase();
+    return codigo.includes(termino) || sigla.includes(termino);
   });
 
   const napsFiltradas = naps.filter(n => {
@@ -196,12 +255,12 @@ function ReporteFallas() {
 
     if (idReporteEditando) {
       if (!nuevoReporte.descripcion) {
-        setError("Por favor completa la descripción.");
+        mostrarToast("Por favor completa la descripción.", "error");
         return;
       }
     } else {
       if (!nuevoReporte.id_elemento || !nuevoReporte.descripcion) {
-        setError("Por favor completa los campos obligatorios del elemento y la descripción.");
+        mostrarToast("Selecciona un dispositivo de la lista y escribe la descripción.", "error");
         return;
       }
     }
@@ -214,7 +273,6 @@ function ReporteFallas() {
 
     try {
       if (idReporteEditando) {
-        // Objeto completo con todos los campos editables que mandamos al backend
         const bodyActualizacion = {
           falla_presentada: fallaFinal,
           prioridad: nuevoReporte.prioridad,
@@ -259,12 +317,48 @@ function ReporteFallas() {
         if (!response.ok) throw new Error(data.error || "Error al crear reporte");
 
         await cargarDatosReales();
-        mostrarToast("Reporte generado con éxito.");
+        mostrarToast("Registro exitoso.");
         limpiarFormulario();
         setPestanaActiva("consultar");
       }
     } catch (err) {
-      setError(err.message);
+      mostrarToast(err.message, "error");
+    }
+  };
+
+  const confirmarResolverReporte = async (e) => {
+    e.preventDefault();
+    if (!reporteAResolver) return;
+    if (!comentarioSolucion.trim()) {
+      mostrarToast("Ingresa el comentario con la solución aplicada.", "error");
+      return;
+    }
+
+    const idReporte = reporteAResolver.id_reporte || reporteAResolver.id;
+    const token = localStorage.getItem("token");
+
+    try {
+      const response = await fetch(`https://sigra-zero.onrender.com/api/red/reportes/${idReporte}`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`
+        },
+        body: JSON.stringify({
+          estatus: false,
+          comentarios_solucion: comentarioSolucion.trim()
+        })
+      });
+
+      const data = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(data.error || "No se pudo marcar como completado");
+
+      setReporteAResolver(null);
+      setComentarioSolucion("");
+      await cargarDatosReales();
+      mostrarToast("Reporte marcado como completado con éxito.");
+    } catch (err) {
+      mostrarToast(err.message, "error");
     }
   };
 
@@ -288,20 +382,23 @@ function ReporteFallas() {
       setReporteAEliminar(null);
       mostrarToast("Reporte eliminado con éxito.");
     } catch (err) {
-      alert(err.message);
+      mostrarToast(err.message, "error");
     }
   };
 
   const obtenerContadorReportesElemento = (repActual) => {
-    const idCli = repActual.cliente_id || repActual.cliente?.id || repActual.cliente?.id_cliente;
-    const idNap = repActual.nap_id || repActual.nap?.id || repActual.nap?.id_nap;
-    const idPoste = repActual.poste_id || repActual.poste?.id || repActual.poste?.poste_id;
+    const idCli = repActual.id_cliente || repActual.cliente_id || repActual.cliente?.id || repActual.cliente?.id_cliente;
+    const idOnu = repActual.id_onus || repActual.onu?.id_onus;
+    const idNap = repActual.id_nap || repActual.nap_id || repActual.nap?.id || repActual.nap?.id_nap;
+    const idPoste = repActual.id_poste || repActual.poste_id || repActual.poste?.id || repActual.poste?.poste_id;
 
     const coincidencias = reportes.filter(r => {
-      const rCli = r.cliente_id || r.cliente?.id || r.cliente?.id_cliente;
-      const rNap = r.nap_id || r.nap?.id || r.nap?.id_nap;
-      const rPoste = r.poste_id || r.poste?.id || r.poste?.poste_id;
+      const rCli = r.id_cliente || r.cliente_id || r.cliente?.id || r.cliente?.id_cliente;
+      const rOnu = r.id_onus || r.onu?.id_onus;
+      const rNap = r.id_nap || r.nap_id || r.nap?.id || r.nap?.id_nap;
+      const rPoste = r.id_poste || r.poste_id || r.poste?.id || r.poste?.poste_id;
 
+      if (idOnu && rOnu === idOnu) return true;
       if (idCli && rCli === idCli) return true;
       if (idNap && rNap === idNap) return true;
       if (idPoste && rPoste === idPoste) return true;
@@ -314,19 +411,31 @@ function ReporteFallas() {
   const generarYGuardarPDFAutomatico = (rep) => {
     const ventana = window.open("", "_blank");
     if (!ventana) {
-      alert("El navegador bloqueó la ventana emergente. Permite los popups para este sitio.");
+      mostrarToast("Permite las ventanas emergentes para visualizar el PDF.", "error");
       return;
     }
 
     const fechaCierreFormateada = new Date(rep.fecha_resolucion || Date.now()).toLocaleString();
     const totalReportesVeces = obtenerContadorReportesElemento(rep);
 
-    const esCliente = !!rep.cliente_id || !!rep.cliente || (!rep.nap_id && !rep.poste_id && !rep.nap && !rep.poste);
-    const esNap = !!rep.nap_id || (rep.nap && !rep.cliente_id);
-    const esPoste = !!rep.poste_id || (rep.poste && !rep.cliente_id && !rep.nap_id);
+    const tipoElementoStr = (rep.tipo_elemento || "").toLowerCase();
+    const esOnu = tipoElementoStr.includes("onu") || !!rep.id_onus || esDispositivoOnu(rep.cliente);
+    const esNap = !esOnu && (tipoElementoStr.includes("nap") || !!rep.id_nap || !!rep.nap_id || !!rep.nap);
+    const esPoste = !esOnu && !esNap && (tipoElementoStr.includes("poste") || !!rep.id_poste || !!rep.poste_id || !!rep.poste);
+    const esCliente = !esOnu && !esNap && !esPoste;
 
     let infoHtml = "";
-    if (esCliente || rep.cliente) {
+    if (esOnu) {
+      const codigoOnu = rep.onu?.codigo || rep.cliente?.cliente_ref || rep.cliente?.nombre_completo || "N/A";
+      const serieOnu = rep.onu?.no_serie || rep.cliente?.contacto || "N/A";
+      const localidadOnu = rep.onu?.localidad || rep.cliente?.localidad || "MX-B1";
+      infoHtml = `
+        <div class="field"><strong>Tipo de Elemento:</strong> ONU (Equipo de Red / Fibra)</div>
+        <div class="field"><strong>Identificador / Código:</strong> ${codigoOnu}</div>
+        <div class="field"><strong>Número de Serie:</strong> ${serieOnu}</div>
+        <div class="field"><strong>Localidad / Barrio:</strong> ${localidadOnu}</div>
+      `;
+    } else if (esCliente || rep.cliente) {
       const nombreCli = rep.cliente?.nombre_completo || rep.cliente?.cliente_ref || rep.nombre_elemento || "N/A";
       const telCli = rep.cliente?.contacto || "N/A";
       const napCli = rep.nap?.codigo_nap || rep.cliente?.nap?.codigo_nap || "N/A";
@@ -340,7 +449,7 @@ function ReporteFallas() {
       `;
     } else if (esNap || rep.nap) {
       const codigoNap = rep.nap?.codigo_nap || rep.nombre_elemento || "N/A";
-      const puertoNap = rep.nap?.puertos_totales || rep.nap?.puertos || "N/A";
+      const puertoNap = rep.nap?.capacidad_puertos || rep.nap?.puertos_totales || rep.nap?.puertos || "N/A";
       const posteNap = rep.poste?.codigo || rep.nap?.poste?.codigo || "N/A";
       infoHtml = `
         <div class="field"><strong>Tipo de Elemento:</strong> Caja NAP de Distribución</div>
@@ -453,7 +562,7 @@ function ReporteFallas() {
       } catch (error) {
         console.error("Error al generar el PDF:", error);
         ventana.close();
-        alert("No se pudo generar el PDF del reporte.");
+        mostrarToast("No se pudo generar el PDF del reporte.", "error");
       } finally {
         document.body.removeChild(contenedor);
       }
@@ -490,23 +599,27 @@ function ReporteFallas() {
   };
 
   const irAlMapaGeolocalizacion = (rep) => {
-    const tipoElementoStr = (rep.tipo_elemento || (rep.cliente_id ? "cliente" : rep.nap_id ? "nap" : "poste")).toLowerCase();
+    const tipoElementoStr = (rep.tipo_elemento || (rep.id_onus ? "onu" : rep.id_cliente || rep.cliente_id ? "cliente" : rep.id_nap || rep.nap_id ? "nap" : "poste")).toLowerCase();
     
     let tipoParam = "cliente";
     let idBuscado = null;
     let elementoEncontrado = null;
 
-    if (tipoElementoStr.includes("cliente")) {
+    if (tipoElementoStr.includes("onu") || rep.id_onus || esDispositivoOnu(rep.cliente)) {
+      tipoParam = "onu";
+      idBuscado = rep.onu?.id_onus || rep.cliente?.id_cliente || rep.id_onus || rep.id_cliente || rep.id_elemento;
+      elementoEncontrado = rep.onu || rep.cliente || onus.find(o => String(o.id_cliente || o.id_onus || o.id) === String(idBuscado));
+    } else if (tipoElementoStr.includes("cliente")) {
       tipoParam = "cliente";
-      idBuscado = rep.cliente?.id_cliente || rep.cliente?.id || rep.id_elemento || rep.cliente_id;
+      idBuscado = rep.cliente?.id_cliente || rep.cliente?.id || rep.id_elemento || rep.id_cliente || rep.cliente_id;
       elementoEncontrado = rep.cliente || clientes.find(c => String(c.id_cliente) === String(idBuscado) || String(c.id) === String(idBuscado));
     } else if (tipoElementoStr.includes("nap")) {
       tipoParam = "nap";
-      idBuscado = rep.nap?.id_nap || rep.nap?.id || rep.id_elemento || rep.nap_id;
+      idBuscado = rep.nap?.id_nap || rep.nap?.id || rep.id_elemento || rep.id_nap || rep.nap_id;
       elementoEncontrado = rep.nap || naps.find(n => String(n.id_nap) === String(idBuscado) || String(n.id) === String(idBuscado));
     } else {
       tipoParam = "poste";
-      idBuscado = rep.poste?.poste_id || rep.poste?.id || rep.id_elemento || rep.poste_id;
+      idBuscado = rep.poste?.poste_id || rep.poste?.id || rep.id_elemento || rep.id_poste || rep.poste_id;
       elementoEncontrado = rep.poste || postes.find(p => String(p.poste_id) === String(idBuscado) || String(p.id) === String(idBuscado));
     }
 
@@ -524,7 +637,7 @@ function ReporteFallas() {
         window.location.href = `/mapa?lat=${lat}&lng=${lng}&zoom=18`;
       }
     } else {
-      alert("Este elemento no cuenta con coordenadas geográficas registradas en la base de datos.");
+      mostrarToast("Este elemento no cuenta con coordenadas geográficas registradas.", "error");
     }
   };
 
@@ -536,6 +649,30 @@ function ReporteFallas() {
       if (filtroEstatus === "COMPLETADOS") return !esSinResolver;
       return true;
     });
+
+  const listaDropdownActual = nuevoReporte.tipo_elemento === "cliente"
+    ? clientesFiltrados.map(c => ({
+        id: c.id_cliente || c.id,
+        texto: `${c.cliente_ref || c.codigo || ""} ${c.nombre_completo ? `- ${c.nombre_completo}` : ""}`.trim(),
+        localidad: c.localidad || "MX-B1"
+      }))
+    : nuevoReporte.tipo_elemento === "onu"
+    ? onusFiltradas.map(o => ({
+        id: o.id_cliente || o.id_onus || o.id,
+        texto: o.cliente_ref || o.codigo || o.nombre_completo || `ONU-${o.id}`,
+        localidad: o.localidad || "MX-B1"
+      }))
+    : nuevoReporte.tipo_elemento === "nap"
+    ? napsFiltradas.map(n => ({
+        id: n.id_nap || n.id,
+        texto: n.codigo_nap || n.codigo || n.nombre,
+        localidad: n.localidad || "MX-B1"
+      }))
+    : postesFiltrados.map(p => ({
+        id: p.poste_id || p.id,
+        texto: p.codigo || p.identificador,
+        localidad: p.localidad || "MX-B1"
+      }));
 
   return (
     <div style={{ padding: "24px 32px", backgroundColor: "#f8fafc", height: "100%", boxSizing: "border-box", overflowY: "auto", fontFamily: "Segoe UI, sans-serif" }}>
@@ -549,10 +686,10 @@ function ReporteFallas() {
           <button
             onClick={() => setPestanaActiva("consultar")}
             style={{
-              padding: "8px 16px",
-              backgroundColor: pestanaActiva === "consultar" ? '#16a34a' : "#ffffff",
-              color: pestanaActiva === "consultar" ? "#ffffff" : "#334155",
-              border: "1px solid #cbd5e1",
+              padding: "9px 18px",
+              backgroundColor: pestanaActiva === "consultar" ? "#16a34a" : "#010203",
+              color: "#ffffff",
+              border: "none",
               borderRadius: "6px",
               fontWeight: "600",
               fontSize: "0.82rem",
@@ -567,17 +704,17 @@ function ReporteFallas() {
               setPestanaActiva("nuevo");
             }}
             style={{
-              padding: "8px 16px",
-              backgroundColor: pestanaActiva === "nuevo" ? '#16a34a' : "#ffffff",
-              color: pestanaActiva === "nuevo" ? "#ffffff" : "#334155",
-              border: "1px solid #cbd5e1",
+              padding: "9px 18px",
+              backgroundColor: "#16a34a",
+              color: "#ffffff",
+              border: "none",
               borderRadius: "6px",
-              fontWeight: "600",
+              fontWeight: "700",
               fontSize: "0.82rem",
               cursor: "pointer"
             }}
           >
-            Registrar Reporte
+            + Registrar Reporte
           </button>
         </div>
       </div>
@@ -593,11 +730,12 @@ function ReporteFallas() {
       ) : (
         <>
           {pestanaActiva === "consultar" && (
-            <div style={{ backgroundColor: "#ffffff", borderRadius: "8px", boxShadow: "0 1px 3px rgba(0,0,0,0.05)", overflow: "hidden", border: "1px solid #e2e8f0" }}>
+            <div style={{ backgroundColor: "#ffffff", borderRadius: "8px", overflow: "hidden", border: "1px solid #e2e8f0" }}>
               
               <div style={{ padding: "12px 18px", borderBottom: "1px solid #e2e8f0", display: "flex", justifyContent: "space-between", alignItems: "center", backgroundColor: "#f8fafc" }}>
                 <span style={{ fontWeight: "700", color: "#0f172a", fontSize: "0.9rem" }}>Historial de Incidencias Registradas (Más recientes primero)</span>
-                <div style={{ display: "flex", gap: "6px" }}>
+                <div style={{ display: "flex", gap: "6px", alignItems: "center" }}>
+                  <span style={{ fontSize: "0.78rem", fontWeight: "700", color: "#475569", marginRight: "4px" }}>Estatus:</span>
                   {[
                     { id: "PENDIENTES", label: "PENDIENTES" },
                     { id: "COMPLETADOS", label: "COMPLETADOS" }
@@ -606,11 +744,11 @@ function ReporteFallas() {
                       key={f.id}
                       onClick={() => setFiltroEstatus(f.id)}
                       style={{
-                        padding: "5px 12px",
-                        backgroundColor: filtroEstatus === f.id ? "#0f172a" : "#ffffff",
-                        color: filtroEstatus === f.id ? "#ffffff" : "#475569",
+                        padding: "6px 12px",
+                        backgroundColor: filtroEstatus === f.id ? "#0284c7" : "#ffffff",
+                        color: filtroEstatus === f.id ? "#ffffff" : "#334155",
                         border: "1px solid #cbd5e1",
-                        borderRadius: "4px",
+                        borderRadius: "6px",
                         fontSize: "0.75rem",
                         fontWeight: "600",
                         cursor: "pointer"
@@ -625,39 +763,47 @@ function ReporteFallas() {
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse", textAlign: "left", fontSize: "0.85rem" }}>
                   <thead>
-                    <tr style={{ backgroundColor: "#ffffff", color: "#64748b", borderBottom: "1px solid #e2e8f0", fontSize: "0.78rem", textTransform: "uppercase" }}>
+                    <tr style={{ backgroundColor: "#f8fafc", color: "#64748b", borderBottom: "1px solid #e2e8f0", fontSize: "0.78rem", textTransform: "uppercase" }}>
                       <th style={{ padding: "12px 16px" }}>ID</th>
                       <th style={{ padding: "12px 16px" }}>Dispositivo</th>
                       <th style={{ padding: "12px 16px" }}>Falla Presentada</th>
                       <th style={{ padding: "12px 16px" }}>Prioridad</th>
                       <th style={{ padding: "12px 16px" }}>Técnico Asignado</th>
                       <th style={{ padding: "12px 16px", textAlign: "center" }}>Estatus</th>
-                      <th style={{ padding: "12px 16px", textAlign: "center" }}>Acciones</th>
+                      <th style={{ padding: "12px 16px", textAlign: "right" }}>Acciones</th>
                     </tr>
                   </thead>
                   <tbody>
                     {reportesFiltrados.map((rep) => {
-                      const tipoElementoStr = (rep.tipo_elemento || (rep.cliente_id ? "cliente" : rep.nap_id ? "nap" : "poste")).toLowerCase();
-                      const esCliente = tipoElementoStr.includes("cliente");
-                      const esNap = tipoElementoStr.includes("nap");
+                      const tipoElementoStr = (rep.tipo_elemento || (rep.id_onus ? "onu" : rep.id_cliente || rep.cliente_id ? "cliente" : rep.id_nap || rep.nap_id ? "nap" : "poste")).toLowerCase();
+                      const esOnu = tipoElementoStr.includes("onu") || !!rep.id_onus || esDispositivoOnu(rep.cliente);
+                      const esCliente = !esOnu && tipoElementoStr.includes("cliente");
+                      const esNap = !esOnu && tipoElementoStr.includes("nap");
                       
-                      const idBuscado = esCliente 
-                        ? (rep.cliente?.id_cliente || rep.cliente?.id || rep.id_elemento || rep.cliente_id)
+                      const idBuscado = esOnu
+                        ? (rep.onu?.id_onus || rep.cliente?.id_cliente || rep.id_onus || rep.id_cliente || rep.id_elemento)
+                        : esCliente 
+                        ? (rep.cliente?.id_cliente || rep.cliente?.id || rep.id_elemento || rep.id_cliente || rep.cliente_id)
                         : esNap 
-                        ? (rep.nap?.id_nap || rep.nap?.id || rep.id_elemento || rep.nap_id)
-                        : (rep.poste?.poste_id || rep.poste?.id || rep.id_elemento || rep.poste_id);
+                        ? (rep.nap?.id_nap || rep.nap?.id || rep.id_elemento || rep.id_nap || rep.nap_id)
+                        : (rep.poste?.poste_id || rep.poste?.id || rep.id_elemento || rep.id_poste || rep.poste_id);
                       
-                      const tipoDispositivo = esCliente ? "Modem / Cliente" : esNap ? "Caja NAP" : "Poste";
+                      const tipoDispositivo = esOnu ? "Equipo ONU" : esCliente ? "Modem / Cliente" : esNap ? "Caja NAP" : "Poste";
                       
-                      const elementoCoincidente = esCliente 
+                      const elementoCoincidente = esOnu
+                        ? onus.find(o => String(o.id_cliente || o.id_onus || o.id) === String(idBuscado))
+                        : esCliente 
                         ? clientes.find(c => String(c.id_cliente) === String(idBuscado) || String(c.id) === String(idBuscado))
                         : esNap 
                         ? naps.find(n => String(n.id_nap) === String(idBuscado) || String(n.id) === String(idBuscado))
                         : postes.find(p => String(p.poste_id) === String(idBuscado) || String(p.id) === String(idBuscado));
 
                       const nombreEspecifico = 
+                        rep.onu?.codigo ||
+                        rep.cliente?.cliente_ref ||
                         rep.cliente?.nombre_completo || 
                         rep.nombre_cliente || 
+                        elementoCoincidente?.cliente_ref ||
                         elementoCoincidente?.nombre_completo ||
                         elementoCoincidente?.nombre ||
                         rep.nap?.codigo_nap || 
@@ -675,63 +821,63 @@ function ReporteFallas() {
                       const estaCompletado = !rep.estatus;
 
                       return (
-                        <tr key={idReporteReal} style={{ borderBottom: "1px solid #f1f5f9" }}>
-                          <td style={{ padding: "12px 16px", fontWeight: "600", color: "#0f172a" }}>#{idReporteReal}</td>
-                          
-                          <td style={{ padding: "12px 16px" }}>
-                            <div style={{ fontWeight: "700", fontSize: "0.68rem", color: '#16a34a', letterSpacing: "0.5px", textTransform: "uppercase" }}>
-                              {tipoDispositivo}
-                            </div>
-                            <div style={{ fontWeight: "600", color: "#1e293b", fontSize: "0.85rem" }}>
-                              {nombreEspecifico}
-                            </div>
-                          </td>
+                        <React.Fragment key={idReporteReal}>
+                          <tr style={{ borderBottom: "1px solid #f1f5f9" }}>
+                            <td style={{ padding: "12px 16px", fontWeight: "700", color: "#0f172a" }}>#{idReporteReal}</td>
+                            
+                            <td style={{ padding: "12px 16px" }}>
+                              <div style={{ fontWeight: "700", fontSize: "0.68rem", color: "#16a34a", letterSpacing: "0.5px", textTransform: "uppercase" }}>
+                                {tipoDispositivo}
+                              </div>
+                              <div style={{ fontWeight: "600", color: "#1e293b", fontSize: "0.85rem" }}>
+                                {nombreEspecifico}
+                              </div>
+                            </td>
 
-                          <td style={{ padding: "12px 16px", fontWeight: "600", color: "#0f172a" }}>{rep.falla_presentada}</td>
-                          
-                          <td style={{ padding: "12px 16px" }}>
-                            <span
-                              style={{
-                                padding: "3px 8px",
-                                borderRadius: "6px",
-                                fontSize: "0.75rem",
-                                fontWeight: "700",
-                                backgroundColor: rep.prioridad === "Urgente" ? "#fee2e2" : "#f1f5f9",
-                                color: rep.prioridad === "Urgente" ? "#dc2626" : "#475569"
-                              }}
-                            >
-                              {rep.prioridad || "Ordinaria"}
-                            </span>
-                          </td>
+                            <td style={{ padding: "12px 16px", fontWeight: "600", color: "#0f172a" }}>{rep.falla_presentada}</td>
+                            
+                            <td style={{ padding: "12px 16px" }}>
+                              <span
+                                style={{
+                                  padding: "3px 8px",
+                                  borderRadius: "4px",
+                                  fontSize: "0.75rem",
+                                  fontWeight: "700",
+                                  backgroundColor: rep.prioridad === "Urgente" ? "#fee2e2" : "#f1f5f9",
+                                  color: rep.prioridad === "Urgente" ? "#dc2626" : "#475569"
+                                }}
+                              >
+                                {rep.prioridad || "Ordinaria"}
+                              </span>
+                            </td>
 
-                          <td style={{ padding: "12px 16px", color: "#475569", fontWeight: "500" }}>{rep.tecnico_asignado || "Sin asignar"}</td>
+                            <td style={{ padding: "12px 16px", color: "#475569", fontWeight: "500" }}>{rep.tecnico_asignado || "Sin asignar"}</td>
 
-                          <td style={{ padding: "12px 16px", textAlign: "center" }}>
-                            <span
-                              style={{
-                                padding: "3px 10px",
-                                borderRadius: "6px",
-                                fontSize: "0.75rem",
-                                fontWeight: "700",
-                                display: "inline-block",
-                                backgroundColor: rep.estatus ? "#fdefb6" : "#dcfce7",
-                                color: rep.estatus ? "#a84c05" : "#166534"
-                              }}
-                            >
-                              {rep.estatus ? "Pendiente" : "Completado"}
-                            </span>
-                          </td>
+                            <td style={{ padding: "12px 16px", textAlign: "center" }}>
+                              <span
+                                style={{
+                                  padding: "4px 10px",
+                                  borderRadius: "4px",
+                                  fontSize: "0.75rem",
+                                  fontWeight: "700",
+                                  display: "inline-block",
+                                  backgroundColor: rep.estatus ? "#fef3c7" : "#dcfce7",
+                                  color: rep.estatus ? "#b45309" : "#16a34a"
+                                }}
+                              >
+                                {rep.estatus ? "Pendiente" : "Completado"}
+                              </span>
+                            </td>
 
-                          <td style={{ padding: "12px 16px", textAlign: "center" }}>
-                            <div style={{ display: "flex", justifyContent: "center", gap: "6px" }}>
-                              {estaCompletado && (
+                            <td style={{ padding: "12px 16px", textAlign: "right" }}>
+                              <div style={{ display: "flex", justifyContent: "flex-end", gap: "6px" }}>
                                 <button
-                                  onClick={() => generarYGuardarPDFAutomatico(rep)}
+                                  onClick={() => irAlMapaGeolocalizacion(rep)}
                                   style={{
                                     padding: "5px 10px",
-                                    backgroundColor: "#b91c1c",
+                                    backgroundColor: "#0284c7",
                                     color: "#ffffff",
-                                    border: "1px solid #991b1b",
+                                    border: "none",
                                     borderRadius: "4px",
                                     cursor: "pointer",
                                     fontSize: "0.75rem",
@@ -739,18 +885,16 @@ function ReporteFallas() {
                                     whiteSpace: "nowrap"
                                   }}
                                 >
-                                  PDF
+                                  Ubicar Pin
                                 </button>
-                              )}
 
-                              {rep.estatus && (
                                 <button
-                                  onClick={() => prepararEdicionReporte(rep)}
+                                  onClick={() => setFilaExpandida(filaExpandida === idReporteReal ? null : idReporteReal)}
                                   style={{
                                     padding: "5px 10px",
-                                    backgroundColor: "#ffef11",
-                                    color: "#0f0e0e",
-                                    border: "1px solid #fffb19",
+                                    backgroundColor: "#475569",
+                                    color: "#ffffff",
+                                    border: "none",
                                     borderRadius: "4px",
                                     cursor: "pointer",
                                     fontSize: "0.75rem",
@@ -758,46 +902,109 @@ function ReporteFallas() {
                                     whiteSpace: "nowrap"
                                   }}
                                 >
-                                  Editar
+                                  {filaExpandida === idReporteReal ? "Ocultar" : "Detalles"}
                                 </button>
-                              )}
 
-                              <button
-                                onClick={() => irAlMapaGeolocalizacion(rep)}
-                                style={{
-                                  padding: "5px 10px",
-                                  backgroundColor: "#ad0601",
-                                  color: "#ffffff",
-                                  border: "1px solid #ad0601",
-                                  borderRadius: "4px",
-                                  cursor: "pointer",
-                                  fontSize: "0.75rem",
-                                  fontWeight: "600",
-                                  whiteSpace: "nowrap"
-                                }}
-                              >
-                                Ubicar Pin
-                              </button>
+                                {estaCompletado && (
+                                  <button
+                                    onClick={() => generarYGuardarPDFAutomatico(rep)}
+                                    style={{
+                                      padding: "5px 10px",
+                                      backgroundColor: "#475569",
+                                      color: "#ffffff",
+                                      border: "none",
+                                      borderRadius: "4px",
+                                      cursor: "pointer",
+                                      fontSize: "0.75rem",
+                                      fontWeight: "600",
+                                      whiteSpace: "nowrap"
+                                    }}
+                                  >
+                                    PDF
+                                  </button>
+                                )}
 
-                              <button
-                                onClick={() => setReporteAEliminar(rep)}
-                                style={{
-                                  padding: "5px 10px",
-                                  backgroundColor: "rgb(250, 4, 4)",
-                                  color: "#f5f5f5",
-                                  border: "1px solid #fd0202",
-                                  borderRadius: "4px",
-                                  cursor: "pointer",
-                                  fontSize: "0.75rem",
-                                  fontWeight: "600",
-                                  whiteSpace: "nowrap"
-                                }}
-                              >
-                                Eliminar
-                              </button>
-                            </div>
-                          </td>
-                        </tr>
+                                {rep.estatus && (
+                                  <>
+                                    <button
+                                      onClick={() => {
+                                        setReporteAResolver(rep);
+                                        setComentarioSolucion("");
+                                      }}
+                                      style={{
+                                        padding: "5px 10px",
+                                        backgroundColor: "#16a34a",
+                                        color: "#ffffff",
+                                        border: "none",
+                                        borderRadius: "4px",
+                                        cursor: "pointer",
+                                        fontSize: "0.75rem",
+                                        fontWeight: "600",
+                                        whiteSpace: "nowrap"
+                                      }}
+                                    >
+                                      Resolver
+                                    </button>
+
+                                    <button
+                                      onClick={() => prepararEdicionReporte(rep)}
+                                      style={{
+                                        padding: "5px 10px",
+                                        backgroundColor: "#d97706",
+                                        color: "#ffffff",
+                                        border: "none",
+                                        borderRadius: "4px",
+                                        cursor: "pointer",
+                                        fontSize: "0.75rem",
+                                        fontWeight: "600",
+                                        whiteSpace: "nowrap"
+                                      }}
+                                    >
+                                      Editar
+                                    </button>
+                                  </>
+                                )}
+
+                                <button
+                                  onClick={() => setReporteAEliminar(rep)}
+                                  style={{
+                                    padding: "5px 10px",
+                                    backgroundColor: "#dc2626",
+                                    color: "#ffffff",
+                                    border: "none",
+                                    borderRadius: "4px",
+                                    cursor: "pointer",
+                                    fontSize: "0.75rem",
+                                    fontWeight: "600",
+                                    whiteSpace: "nowrap"
+                                  }}
+                                >
+                                  Eliminar
+                                </button>
+                              </div>
+                            </td>
+                          </tr>
+
+                          {filaExpandida === idReporteReal && (
+                            <tr style={{ backgroundColor: "#f8fafc", borderBottom: "1px solid #e2e8f0" }}>
+                              <td colSpan="7" style={{ padding: "14px 24px", fontSize: "0.82rem", color: "#334155" }}>
+                                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "16px" }}>
+                                  <div>
+                                    <strong>Descripción del reporte:</strong> {rep.descripcion || "Sin descripción"}
+                                  </div>
+                                  <div>
+                                    <strong>Fecha de registro:</strong> {rep.fecha_reporte ? new Date(rep.fecha_reporte).toLocaleString() : "N/A"}
+                                  </div>
+                                  {!rep.estatus && (
+                                    <div style={{ gridColumn: "1 / -1" }}>
+                                      <strong>Solución aplicada:</strong> {rep.comentarios_solucion || "Sin comentarios de cierre"}
+                                    </div>
+                                  )}
+                                </div>
+                              </td>
+                            </tr>
+                          )}
+                        </React.Fragment>
                       );
                     })}
                     {reportesFiltrados.length === 0 && (
@@ -813,24 +1020,67 @@ function ReporteFallas() {
             </div>
           )}
 
+          {/* MODAL PARA RESOLVER / COMPLETAR REPORTE */}
+          {reporteAResolver !== null && (
+            <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.5)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 3000 }}>
+              <div style={{ backgroundColor: "#ffffff", padding: "24px 28px", borderRadius: "10px", width: "440px", border: "1px solid #e2e8f0" }}>
+                <h3 style={{ margin: "0 0 10px 0", color: "#0f172a", fontSize: "1.05rem", fontWeight: "700" }}>
+                  Completar Reporte #{reporteAResolver.id_reporte || reporteAResolver.id}
+                </h3>
+                <p style={{ color: "#475569", fontSize: "0.82rem", marginBottom: "14px" }}>
+                  Describe brevemente la solución o el trabajo realizado para cerrar esta incidencia:
+                </p>
+                <form onSubmit={confirmarResolverReporte} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
+                  <textarea
+                    rows={3}
+                    maxLength={500}
+                    required
+                    placeholder="Ej. Se reemplazó conector APC dañado y se verificó potencia óptica en parámetros normales..."
+                    value={comentarioSolucion}
+                    onChange={(e) => setComentarioSolucion(e.target.value)}
+                    style={{ width: "100%", padding: "9px 10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.85rem", resize: "vertical", outline: "none", boxSizing: "border-box" }}
+                  />
+                  <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px" }}>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setReporteAResolver(null);
+                        setComentarioSolucion("");
+                      }}
+                      style={{ padding: "8px 16px", backgroundColor: "#e2e8f0", color: "#334155", border: "none", borderRadius: "6px", fontWeight: "600", fontSize: "0.82rem", cursor: "pointer" }}
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="submit"
+                      style={{ padding: "8px 18px", backgroundColor: "#16a34a", color: "#ffffff", border: "none", borderRadius: "6px", fontWeight: "700", fontSize: "0.82rem", cursor: "pointer" }}
+                    >
+                      Marcar Completado
+                    </button>
+                  </div>
+                </form>
+              </div>
+            </div>
+          )}
+
           {/* MODAL DE CONFIRMACIÓN DE ELIMINACIÓN */}
           {reporteAEliminar !== null && (
-            <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(15, 23, 42, 0.6)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 3000, backdropFilter: "blur(2px)" }}>
-              <div style={{ backgroundColor: "#ffffff", padding: "24px 28px", borderRadius: "12px", width: "100%", maxWidth: "420px", boxShadow: "0 20px 25px -5px rgba(0,0,0,0.15)", border: "1px solid #e2e8f0", textAlign: "center" }}>
-                <h3 style={{ margin: "0 0 10px 0", color: "#dc2626", fontSize: "1.2rem", fontWeight: "700" }}>Eliminar Reporte</h3>
-                <p style={{ color: "#334155", fontSize: "0.88rem", marginBottom: "20px" }}>
+            <div style={{ position: "fixed", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(0,0,0,0.5)", display: "flex", justifyContent: "center", alignItems: "center", zIndex: 3000 }}>
+              <div style={{ backgroundColor: "#ffffff", padding: "24px 28px", borderRadius: "10px", width: "400px", textAlign: "center" }}>
+                <h3 style={{ margin: "0 0 10px 0", color: "#dc2626", fontSize: "1.1rem", fontWeight: "700" }}>Eliminar Reporte</h3>
+                <p style={{ color: "#475569", fontSize: "0.85rem", marginBottom: "20px" }}>
                   ¿Estás segura de que deseas eliminar el reporte <strong>#{reporteAEliminar.id_reporte || reporteAEliminar.id}</strong> del historial?
                 </p>
                 <div style={{ display: "flex", justifyContent: "center", gap: "10px" }}>
                   <button
                     onClick={() => setReporteAEliminar(null)}
-                    style={{ padding: "8px 16px", backgroundColor: "#e2e8f0", color: "#334155", border: "none", borderRadius: "6px", fontWeight: "600", fontSize: "0.85rem", cursor: "pointer" }}
+                    style={{ padding: "8px 16px", backgroundColor: "#e2e8f0", color: "#334155", border: "none", borderRadius: "6px", fontWeight: "600", fontSize: "0.82rem", cursor: "pointer" }}
                   >
                     Cancelar
                   </button>
                   <button
                     onClick={confirmarEliminarReporte}
-                    style={{ padding: "8px 18px", backgroundColor: "#dc2626", color: "#ffffff", border: "none", borderRadius: "6px", fontWeight: "600", fontSize: "0.85rem", cursor: "pointer" }}
+                    style={{ padding: "8px 16px", backgroundColor: "#dc2626", color: "#ffffff", border: "none", borderRadius: "6px", fontWeight: "700", fontSize: "0.82rem", cursor: "pointer" }}
                   >
                     Sí, Eliminar
                   </button>
@@ -843,9 +1093,8 @@ function ReporteFallas() {
           {pestanaActiva === "nuevo" && (
             <div style={{ 
               backgroundColor: "#ffffff", 
-              padding: "22px 28px", 
+              padding: "24px 28px", 
               borderRadius: "10px", 
-              boxShadow: "0 1px 3px rgba(0,0,0,0.05)", 
               maxWidth: "720px", 
               margin: "0 auto", 
               border: "1px solid #e2e8f0" 
@@ -854,7 +1103,7 @@ function ReporteFallas() {
                 {idReporteEditando ? `Editar Incidencia Pendiente #${idReporteEditando}` : "Registrar Nueva Incidencia de Falla"}
               </h3>
               
-              <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
+              <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "14px" }}>
                 
                 <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px" }}>
                   <div>
@@ -866,21 +1115,22 @@ function ReporteFallas() {
                       value={nuevoReporte.tipo_elemento}
                       onChange={handleTipoElementoChange}
                       disabled={!!idReporteEditando}
-                      style={{ width: "100%", padding: "8px 10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.85rem", outline: "none", backgroundColor: idReporteEditando ? "#f1f5f9" : "#fff" }}
+                      style={{ width: "100%", padding: "9px 10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.85rem", outline: "none", backgroundColor: idReporteEditando ? "#f1f5f9" : "#fff" }}
                     >
                       <option value="cliente">Modem / Cliente</option>
                       <option value="nap">Caja NAP</option>
                       <option value="poste">Poste</option>
+                      <option value="onu">ONU (Equipo de Red / Fibra)</option>
                     </select>
                   </div>
 
                   <div style={{ position: "relative" }} ref={dropdownRef}>
                     <label style={{ display: "block", fontSize: "0.78rem", fontWeight: "600", marginBottom: "4px", color: "#334155" }}>
-                      Buscar {nuevoReporte.tipo_elemento === "cliente" ? "Modem / Cliente" : nuevoReporte.tipo_elemento === "nap" ? "Caja NAP" : "Poste"}:
+                      Buscar {nuevoReporte.tipo_elemento === "cliente" ? "Modem / Cliente" : nuevoReporte.tipo_elemento === "onu" ? "Equipo ONU" : nuevoReporte.tipo_elemento === "nap" ? "Caja NAP" : "Poste"}:
                     </label>
                     <input
                       type="text"
-                      placeholder="Escribe para buscar..."
+                      placeholder="Escribe código, nombre o localidad..."
                       value={busquedaElemento}
                       disabled={!!idReporteEditando}
                       onFocus={() => !idReporteEditando && setMostrarDropdownElemento(true)}
@@ -888,10 +1138,60 @@ function ReporteFallas() {
                         if (!idReporteEditando) {
                           setBusquedaElemento(e.target.value);
                           setMostrarDropdownElemento(true);
+                          if (!e.target.value.trim()) {
+                            setNuevoReporte(prev => ({ ...prev, id_elemento: "", nombre_elemento_seleccionado: "" }));
+                          }
                         }
                       }}
-                      style={{ width: "100%", padding: "8px 10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.85rem", outline: "none", boxSizing: "border-box", backgroundColor: idReporteEditando ? "#f1f5f9" : "#fff" }}
+                      style={{ width: "100%", padding: "9px 10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.85rem", outline: "none", boxSizing: "border-box", backgroundColor: idReporteEditando ? "#f1f5f9" : "#fff" }}
                     />
+
+                    {mostrarDropdownElemento && !idReporteEditando && (
+                      <div style={{
+                        position: "absolute",
+                        top: "calc(100% + 2px)",
+                        left: 0,
+                        right: 0,
+                        backgroundColor: "#ffffff",
+                        border: "1px solid #cbd5e1",
+                        borderRadius: "6px",
+                        maxHeight: "200px",
+                        overflowY: "auto",
+                        zIndex: 4000,
+                        boxShadow: "0 4px 6px -1px rgba(0,0,0,0.1)"
+                      }}>
+                        {listaDropdownActual.length === 0 ? (
+                          <div style={{ padding: "8px 12px", fontSize: "0.8rem", color: "#94a3b8" }}>
+                            No se encontraron coincidencias
+                          </div>
+                        ) : (
+                          listaDropdownActual.map((item, idx) => (
+                            <div
+                              key={`drop-rep-${idx}`}
+                              onClick={() => seleccionarElemento(item.id, item.texto)}
+                              style={{
+                                padding: "8px 12px",
+                                fontSize: "0.82rem",
+                                fontWeight: "600",
+                                color: "#0f172a",
+                                cursor: "pointer",
+                                borderBottom: "1px solid #f1f5f9",
+                                display: "flex",
+                                justifyContent: "space-between",
+                                alignItems: "center"
+                              }}
+                              onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = "#f1f5f9"; }}
+                              onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = "#ffffff"; }}
+                            >
+                              <span>{item.texto}</span>
+                              <span style={{ backgroundColor: "#e0f2fe", color: "#0369a1", padding: "2px 6px", borderRadius: "4px", fontSize: "0.7rem", fontWeight: "700" }}>
+                                {item.localidad}
+                              </span>
+                            </div>
+                          ))
+                        )}
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -904,7 +1204,7 @@ function ReporteFallas() {
                       name="falla_presentada"
                       value={nuevoReporte.falla_presentada.startsWith("Otro") ? "Otro" : nuevoReporte.falla_presentada}
                       onChange={(e) => setNuevoReporte({ ...nuevoReporte, falla_presentada: e.target.value })}
-                      style={{ width: "100%", padding: "8px 10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.85rem", outline: "none", backgroundColor: "#fff" }}
+                      style={{ width: "100%", padding: "9px 10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.85rem", outline: "none", backgroundColor: "#fff" }}
                     >
                       {nuevoReporte.tipo_elemento === "cliente" && (
                         <>
@@ -912,6 +1212,15 @@ function ReporteFallas() {
                           <option value="Falla de energía en ONU / Router">Falla de energía en ONU / Router</option>
                           <option value="Corte de fibra en acometida de cliente">Corte de fibra en acometida de cliente</option>
                           <option value="Sin servicio de internet (Conexión caída)">Sin servicio de internet (Conexión caída)</option>
+                        </>
+                      )}
+
+                      {nuevoReporte.tipo_elemento === "onu" && (
+                        <>
+                          <option value="Pérdida de potencia óptica / Nivel PON fuera de rango">Pérdida de potencia óptica / Nivel PON fuera de rango</option>
+                          <option value="ONU sin enlace óptico (LOS en rojo)">ONU sin enlace óptico (LOS en rojo)</option>
+                          <option value="Falla de alimentación eléctrica / Reinicio en bucle">Falla de alimentación eléctrica / Reinicio en bucle</option>
+                          <option value="Desconfiguración o fallo en puerto óptico de la ONU">Desconfiguración o fallo en puerto óptico de la ONU</option>
                         </>
                       )}
 
@@ -947,7 +1256,7 @@ function ReporteFallas() {
                         placeholder="Describa brevemente la otra falla..."
                         value={nuevoReporte.otra_falla}
                         onChange={(e) => setNuevoReporte({ ...nuevoReporte, otra_falla: e.target.value })}
-                        style={{ width: "100%", padding: "8px 10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.85rem", outline: "none", boxSizing: "border-box", backgroundColor: "#fff" }}
+                        style={{ width: "100%", padding: "9px 10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.85rem", outline: "none", boxSizing: "border-box", backgroundColor: "#fff" }}
                       />
                     </div>
                   )}
@@ -962,7 +1271,7 @@ function ReporteFallas() {
                       name="prioridad"
                       value={nuevoReporte.prioridad}
                       onChange={(e) => setNuevoReporte({ ...nuevoReporte, prioridad: e.target.value })}
-                      style={{ width: "100%", padding: "8px 10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.85rem", outline: "none", backgroundColor: "#fff" }}
+                      style={{ width: "100%", padding: "9px 10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.85rem", outline: "none", backgroundColor: "#fff" }}
                     >
                       <option value="Ordinaria">Ordinaria</option>
                       <option value="Urgente">Urgente</option>
@@ -977,7 +1286,7 @@ function ReporteFallas() {
                       name="tecnico_asignado"
                       value={nuevoReporte.tecnico_asignado}
                       onChange={(e) => setNuevoReporte({ ...nuevoReporte, tecnico_asignado: e.target.value })}
-                      style={{ width: "100%", padding: "8px 10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.85rem", outline: "none", backgroundColor: "#fff" }}
+                      style={{ width: "100%", padding: "9px 10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.85rem", outline: "none", backgroundColor: "#fff" }}
                     >
                       <option value="">-- Seleccionar Técnico --</option>
                       {tecnicosSoporte
@@ -998,27 +1307,30 @@ function ReporteFallas() {
                   <textarea
                     name="descripcion"
                     maxLength={350}
-                    rows={2}
+                    rows={3}
                     value={nuevoReporte.descripcion}
                     onChange={(e) => setNuevoReporte({ ...nuevoReporte, descripcion: e.target.value })}
                     placeholder="Escriba los detalles específicos de la incidencia..."
-                    style={{ width: "100%", padding: "8px 10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.85rem", resize: "vertical", outline: "none", backgroundColor: "#fff" }}
+                    style={{ width: "100%", padding: "9px 10px", borderRadius: "6px", border: "1px solid #cbd5e1", fontSize: "0.85rem", resize: "vertical", outline: "none", backgroundColor: "#fff", boxSizing: "border-box" }}
                   />
                 </div>
 
-                <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "4px" }}>
+                <div style={{ display: "flex", justifyContent: "flex-end", gap: "10px", marginTop: "6px" }}>
                   <button
                     type="button"
-                    onClick={limpiarFormulario}
-                    style={{ padding: "8px 16px", backgroundColor: "#e2e8f0", color: "#334155", border: "none", borderRadius: "6px", fontWeight: "600", fontSize: "0.85rem", cursor: "pointer" }}
+                    onClick={() => {
+                      limpiarFormulario();
+                      setPestanaActiva("consultar");
+                    }}
+                    style={{ padding: "9px 16px", backgroundColor: "#e2e8f0", color: "#334155", border: "none", borderRadius: "6px", fontWeight: "600", fontSize: "0.82rem", cursor: "pointer" }}
                   >
                     Cancelar
                   </button>
                   <button
                     type="submit"
-                    style={{ padding: "8px 18px", backgroundColor: idReporteEditando ? '#16a34a' : '#16a34a', color: "#ffffff", border: "none", borderRadius: "6px", fontWeight: "600", fontSize: "0.85rem", cursor: "pointer" }}
+                    style={{ padding: "9px 20px", backgroundColor: "#16a34a", color: "#ffffff", border: "none", borderRadius: "6px", fontWeight: "700", fontSize: "0.82rem", cursor: "pointer" }}
                   >
-                    {idReporteEditando ? "Actualizar Reporte" : "Guardar Reporte"}
+                    {idReporteEditando ? "Actualizar" : "Guardar"}
                   </button>
                 </div>
 
@@ -1028,28 +1340,24 @@ function ReporteFallas() {
         </>
       )}
 
-      {toastMensaje && (
-        <div 
-          onClick={() => setToastMensaje("")}
-          style={{
-            position: "fixed",
-            bottom: "24px",
-            right: "24px",
-            backgroundColor: "#16a34a",
-            color: "#ffffff",
-            padding: "12px 20px",
-            borderRadius: "10px",
-            fontWeight: "600",
-            fontSize: "0.9rem",
-            boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.2)",
-            zIndex: 9999,
-            cursor: "pointer",
-            display: "flex",
-            alignItems: "center",
-            gap: "8px"
-          }}
-        >
-          <span>{toastMensaje}</span>
+      {notificacion.visible && (
+        <div style={{
+          position: "fixed",
+          bottom: "24px",
+          right: "24px",
+          backgroundColor: notificacion.tipo === "error" ? "#dc2626" : "#16a34a",
+          color: "#ffffff",
+          padding: "12px 20px",
+          borderRadius: "8px",
+          boxShadow: "0 10px 15px -3px rgba(0, 0, 0, 0.1)",
+          zIndex: 9999,
+          fontSize: "0.85rem",
+          fontWeight: "700",
+          display: "flex",
+          alignItems: "center",
+          gap: "8px"
+        }}>
+          <span>{notificacion.mensaje}</span>
         </div>
       )}
 
