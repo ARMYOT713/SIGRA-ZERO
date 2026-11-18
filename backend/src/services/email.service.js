@@ -15,7 +15,7 @@ async function sendEmail({ to, subject, html }) {
     },
     body: JSON.stringify({
       sender: {
-        name: "SIGRA - Red Winfored",
+        name: "SIGRA - WinfoRed",
         email: SENDER_EMAIL,
       },
       to: [{ email: to }],
