@@ -2,26 +2,62 @@ import React, { useState, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import JSZip from 'jszip';
 
+const CATALOGO_LOCALIDADES = [
+  { codigo: "MX-B1", nombre: "MX-B1 - Santiaguito Maxda (Barrio 1)" },
+  { codigo: "MX-B2", nombre: "MX-B2 - Santiaguito Maxda (Barrio 2)" },
+  { codigo: "MX-B3", nombre: "MX-B3 - Santiaguito Maxda (Barrio 3)" },
+  { codigo: "MX-B4", nombre: "MX-B4 - Santiaguito Maxda (Barrio 4)" },
+  { codigo: "CM", nombre: "CM - Cabecera Municipal" },
+  { codigo: "BI", nombre: "BI - Barrio Iturbide" },
+  { codigo: "BH", nombre: "BH - Barrio Hidalgo" },
+  { codigo: "BM", nombre: "BM - Barrio Morelos" },
+  { codigo: "ICJ", nombre: "ICJ - Ixcaja" },
+  { codigo: "YDJ", nombre: "YDJ - Yondeje" }
+];
+
 function GestionKMZ() {
   const [pestanaActiva, setPestanaActiva] = useState('importacion');
 
   // Estados de importación
   const [elementosLeidos, setElementosLeidos] = useState([]);
   const [nombreArchivo, setNombreArchivo] = useState('');
+  const [localidadLoteImportacion, setLocalidadLoteImportacion] = useState('MX-B1');
   const [cargando, setCargando] = useState(false);
   const [guardando, setGuardando] = useState(false);
   const [mensaje, setMensaje] = useState('');
   const [tipoMensaje, setTipoMensaje] = useState('success');
   const [filtroBusquedaImportacion, setFiltroBusquedaImportacion] = useState('');
 
-  // Estados de exportación y buscador flotante
+  // Estados de exportación y filtros
   const [elementosExportar, setElementosExportar] = useState([]);
   const [cargandoExportacion, setCargandoExportacion] = useState(false);
   const [mensajeExportacion, setMensajeExportacion] = useState('');
   const [filtroBusquedaExportacion, setFiltroBusquedaExportacion] = useState('');
+  const [filtroTipoExportacion, setFiltroTipoExportacion] = useState('TODOS');
 
   const fileInputRef = useRef(null);
   const navigate = useNavigate();
+
+  const formatearLocalidadVista = (loc) => {
+    if (!loc) return 'MX-B1';
+    return String(loc).trim().toUpperCase().replace(/_/g, '-');
+  };
+
+  const normalizarLocalidadBD = (loc) => {
+    if (!loc) return 'MX_B1';
+    const limpio = String(loc).trim().toUpperCase().replace(/-/g, '_');
+    const validas = ['MX_B1', 'MX_B2', 'MX_B3', 'MX_B4', 'CM', 'BI', 'BH', 'BM', 'ICJ', 'YDJ'];
+    return validas.includes(limpio) ? limpio : 'MX_B1';
+  };
+
+  const cambiarLocalidadTodoElLote = (nuevaLoc) => {
+    setLocalidadLoteImportacion(nuevaLoc);
+    setElementosLeidos(prev => prev.map(item => ({ ...item, localidad: nuevaLoc })));
+  };
+
+  const cambiarLocalidadPuntoIndividual = (idPunto, nuevaLoc) => {
+    setElementosLeidos(prev => prev.map(item => item.id === idPunto ? { ...item, localidad: nuevaLoc } : item));
+  };
 
   // --- LÓGICA DE IMPORTACIÓN ROBUSTA CON FILTRADO DE DUPLICADOS ---
   const handleFileUpload = async (e) => {
@@ -35,7 +71,6 @@ function GestionKMZ() {
     try {
       const token = localStorage.getItem('token');
       
-      // 1. Validación previa de archivo duplicado completo en servidor
       try {
         const resVerificacion = await fetch(`https://sigra-zero.onrender.com/api/red/verificar-archivo?nombre=${encodeURIComponent(file.name)}`, {
           headers: { 'Authorization': `Bearer ${token}` }
@@ -54,19 +89,18 @@ function GestionKMZ() {
         console.warn('Verificación de archivo omitida o no disponible:', err);
       }
 
-      // 2. Obtener elementos existentes en la BD para filtrar duplicados individuales por nombre/código
       const headers = { 'Authorization': `Bearer ${token}` };
-      const [resPostes, resNaps, resOnus] = await Promise.all([
+      const [resPostes, resNaps, resClientes] = await Promise.all([
         fetch('https://sigra-zero.onrender.com/api/red/postes', { headers }).catch(() => ({ ok: false })),
         fetch('https://sigra-zero.onrender.com/api/red/naps', { headers }).catch(() => ({ ok: false })),
-        fetch('https://sigra-zero.onrender.com/api/red/onus', { headers }).catch(() => ({ ok: false }))
+        fetch('https://sigra-zero.onrender.com/api/red/clientes', { headers }).catch(() => ({ ok: false }))
       ]);
 
       const codigosExistentes = new Set();
       
       if (resPostes.ok) {
         const data = await resPostes.json().catch(() => ([]));
-        const lista = Array.isArray(data.data) ? data.data : (Array.isArray(data) ? data : []);
+        const lista = Array.isArray(data.data) ? data.data : (Array.isArray(data) ? data.postes || data : []);
         lista.forEach(item => {
           const cod = item.codigo || item.nombre;
           if (cod) codigosExistentes.add(cod.trim().toLowerCase());
@@ -75,23 +109,22 @@ function GestionKMZ() {
 
       if (resNaps.ok) {
         const data = await resNaps.json().catch(() => ([]));
-        const lista = Array.isArray(data.data) ? data.data : (Array.isArray(data) ? data : []);
+        const lista = Array.isArray(data.data) ? data.data : (Array.isArray(data) ? data.naps || data : []);
         lista.forEach(item => {
           const cod = item.codigo_nap || item.codigo || item.nombre;
           if (cod) codigosExistentes.add(cod.trim().toLowerCase());
         });
       }
 
-      if (resOnus.ok) {
-        const data = await resOnus.json().catch(() => ([]));
-        const lista = Array.isArray(data.data) ? data.data : (Array.isArray(data) ? data : []);
+      if (resClientes.ok) {
+        const data = await resClientes.json().catch(() => ([]));
+        const lista = Array.isArray(data.data) ? data.data : (Array.isArray(data) ? data.clientes || data : []);
         lista.forEach(item => {
-          const cod = item.codigo || item.nombre;
+          const cod = item.cliente_ref || item.codigo || item.nombre;
           if (cod) codigosExistentes.add(cod.trim().toLowerCase());
         });
       }
 
-      // 3. Lectura de KML o KMZ
       let kmlText = '';
       if (file.name.endsWith('.kmz') || file.name.endsWith('.ZIP') || file.name.endsWith('.zip')) {
         const zip = new JSZip();
@@ -147,7 +180,8 @@ function GestionKMZ() {
                 nombre: name, 
                 latitud: latNum, 
                 longitud: lngNum,
-                tipo: tipoDetectado 
+                tipo: tipoDetectado,
+                localidad: localidadLoteImportacion
               });
             }
           }
@@ -157,14 +191,14 @@ function GestionKMZ() {
       if (puntosExtraidos.length === 0) {
         setTipoMensaje('error');
         setMensaje(duplicadosOmitidos > 0 
-          ? `El archivo ya se encuentran registrados en el sistema` 
+          ? 'Los elementos del archivo ya se encuentran registrados en el sistema.' 
           : 'El archivo no contiene puntos geográficos válidos (Placemarks con coordenadas).');
         setElementosLeidos([]);
         if (fileInputRef.current) fileInputRef.current.value = '';
       } else {
         setElementosLeidos(puntosExtraidos);
         setTipoMensaje('success');
-        let msg = `Se leyo el archivo correctamente`;
+        let msg = 'Se leyó el archivo correctamente.';
         if (duplicadosOmitidos > 0) {
           msg += ` (Se omitieron ${duplicadosOmitidos} elementos por ya estar registrados).`;
         }
@@ -192,7 +226,8 @@ function GestionKMZ() {
     item.nombre.toLowerCase().includes(filtroBusquedaImportacion.toLowerCase()) ||
     item.latitud.toString().includes(filtroBusquedaImportacion) ||
     item.longitud.toString().includes(filtroBusquedaImportacion) ||
-    item.tipo.toLowerCase().includes(filtroBusquedaImportacion.toLowerCase())
+    item.tipo.toLowerCase().includes(filtroBusquedaImportacion.toLowerCase()) ||
+    (item.localidad || '').toLowerCase().includes(filtroBusquedaImportacion.toLowerCase())
   );
 
   // --- GUARDADO INTELIGENTE Y SEGURO HACIA EL BACKEND ---
@@ -217,9 +252,12 @@ function GestionKMZ() {
       let ultimoPunto = null;
 
       for (const item of elementosLeidos) {
+        const localidadBD = normalizarLocalidadBD(item.localidad || localidadLoteImportacion);
         let endpoint = 'https://sigra-zero.onrender.com/api/red/postes';
         let bodyData = {
           codigo: item.nombre,
+          localidad: localidadBD,
+          estado: 'ACTIVO',
           latitud: item.latitud,
           longitud: item.longitud,
           archivo_kmz: nombreArchivo
@@ -229,14 +267,22 @@ function GestionKMZ() {
           endpoint = 'https://sigra-zero.onrender.com/api/red/naps';
           bodyData = {
             codigo_nap: item.nombre,
+            localidad: localidadBD,
+            estado: 'ACTIVO',
             latitud: item.latitud,
             longitud: item.longitud,
             archivo_kmz: nombreArchivo
           };
-        } else if (item.tipo === 'ONU') {
-          endpoint = 'https://sigra-zero.onrender.com/api/red/onus';
+        } else if (item.tipo === 'ONU' || item.tipo === 'SITE') {
+          endpoint = 'https://sigra-zero.onrender.com/api/red/clientes';
           bodyData = {
-            codigo: item.nombre,
+            cliente_ref: item.nombre,
+            nombre_completo: item.nombre,
+            localidad: localidadBD,
+            estatus: true,
+            estado: 'ACTIVO',
+            tipo: 'ONU',
+            es_onu: true,
             latitud: item.latitud,
             longitud: item.longitud
           };
@@ -256,7 +302,7 @@ function GestionKMZ() {
       }
 
       setTipoMensaje('success');
-      setMensaje('¡Infraestructura guardada y clasificada con éxito! Redirigiendo al mapa...');
+      setMensaje('Infraestructura guardada y clasificada con éxito. Redirigiendo al mapa...');
       
       setTimeout(() => {
         navigate('/mapa', { 
@@ -272,7 +318,7 @@ function GestionKMZ() {
     }
   };
 
-  // --- LÓGICA DE EXPORTACIÓN (Postes, NAPs y ONUs tipo SITE) ---
+  // --- LÓGICA DE EXPORTACIÓN (Exclusivamente Postes y NAPs) ---
   const cargarElementosParaExportar = async () => {
     setCargandoExportacion(true);
     setMensajeExportacion('');
@@ -285,13 +331,12 @@ function GestionKMZ() {
 
       const headers = { 'Authorization': `Bearer ${token}` };
 
-      const [resPostes, resNaps, resOnus] = await Promise.all([
+      const [resPostes, resNaps] = await Promise.all([
         fetch('https://sigra-zero.onrender.com/api/red/postes', { headers }),
-        fetch('https://sigra-zero.onrender.com/api/red/naps', { headers }),
-        fetch('https://sigra-zero.onrender.com/api/red/onus', { headers })
+        fetch('https://sigra-zero.onrender.com/api/red/naps', { headers })
       ]);
 
-      if (resPostes.status === 401 || resNaps.status === 401 || resOnus.status === 401) {
+      if (resPostes.status === 401 || resNaps.status === 401) {
         navigate('/login');
         return;
       }
@@ -300,48 +345,73 @@ function GestionKMZ() {
 
       if (resPostes.ok) {
         const dataPostes = await resPostes.json();
-        const listaPostes = Array.isArray(dataPostes.data) ? dataPostes.data : (Array.isArray(dataPostes) ? dataPostes : []);
-        todosLosElementos.push(...listaPostes.map(item => ({ ...item, tipoElemento: 'POSTE' })));
+        const listaPostes = Array.isArray(dataPostes.data) ? dataPostes.data : (Array.isArray(dataPostes) ? dataPostes.postes || dataPostes : []);
+        todosLosElementos.push(...listaPostes.map(item => ({
+          ...item,
+          realId: item.id || item.poste_id || item.id_poste || item._id,
+          codigo: item.codigo || item.codigo_poste || item.nombre,
+          localidad: formatearLocalidadVista(item.localidad),
+          tipoElemento: 'POSTE'
+        })));
       }
 
       if (resNaps.ok) {
         const dataNaps = await resNaps.json();
-        const listaNaps = Array.isArray(dataNaps.data) ? dataNaps.data : (Array.isArray(dataNaps) ? dataNaps : []);
-        todosLosElementos.push(...listaNaps.map(item => ({ ...item, tipoElemento: 'NAP' })));
-      }
-
-      if (resOnus.ok) {
-        const dataOnus = await resOnus.json();
-        const listaOnus = Array.isArray(dataOnus.data) ? dataOnus.data : (Array.isArray(dataOnus) ? dataOnus : []);
-        
-        const onusFiltrados = listaOnus.filter(item => {
-          const nombre = (item.codigo || item.nombre || '').toLowerCase();
-          return nombre.includes('site') || nombre.includes('olt') || nombre.includes('cent');
-        });
-
-        todosLosElementos.push(...onusFiltrados.map(item => ({ ...item, tipoElemento: 'ONU-SITE' })));
+        const listaNaps = Array.isArray(dataNaps.data) ? dataNaps.data : (Array.isArray(dataNaps) ? dataNaps.naps || dataNaps : []);
+        todosLosElementos.push(...listaNaps.map(item => ({
+          ...item,
+          realId: item.id || item.nap_id || item.id_nap || item._id,
+          codigo: item.codigo_nap || item.codigo || item.nombre,
+          localidad: formatearLocalidadVista(item.localidad),
+          tipoElemento: 'NAP'
+        })));
       }
 
       setElementosExportar(todosLosElementos);
     } catch (error) {
       console.error('Error:', error);
-      setMensajeExportacion('No se pudo conectar con el servidor para cargar toda la infraestructura.');
+      setMensajeExportacion('No se pudo conectar con el servidor para cargar la infraestructura.');
     } finally {
       setCargandoExportacion(false);
     }
   };
 
+  const irAlMapaGeolocalizacion = (el) => {
+    const tipoParam = el.tipoElemento === 'NAP' ? 'nap' : 'poste';
+    const idBuscado = el.realId || el.id || el.poste_id || el.id_nap;
+    const lat = el.latitud ?? el.lat;
+    const lng = el.longitud ?? el.lng;
+
+    if (lat !== undefined && lng !== undefined && lat !== null && lng !== null) {
+      if (idBuscado) {
+        window.location.href = `/mapa?lat=${lat}&lng=${lng}&tipo=${tipoParam}&id=${idBuscado}&zoom=18`;
+      } else {
+        window.location.href = `/mapa?lat=${lat}&lng=${lng}&zoom=18`;
+      }
+    } else {
+      alert('Este elemento no cuenta con coordenadas geográficas válidas.');
+    }
+  };
+
   const elementosTablaExportar = elementosExportar.filter(el => {
+    if (filtroTipoExportacion === 'POSTES' && el.tipoElemento !== 'POSTE') return false;
+    if (filtroTipoExportacion === 'NAP' && el.tipoElemento !== 'NAP') return false;
+
     if (!filtroBusquedaExportacion.trim()) return true;
-    const codigo = (el.codigo || el.nombre || '').toLowerCase();
-    const filtro = filtroBusquedaExportacion.toLowerCase();
-    return codigo.includes(filtro);
+
+    const filtro = filtroBusquedaExportacion.toLowerCase().trim().replace(/_/g, '-');
+    const codigo = (el.codigo || el.nombre || '').toLowerCase().replace(/_/g, '-');
+    const locCodigo = (el.localidad || 'MX-B1').toLowerCase().replace(/_/g, '-');
+    const locObj = CATALOGO_LOCALIDADES.find(l => l.codigo.toLowerCase() === locCodigo);
+    const locNombre = locObj ? locObj.nombre.toLowerCase() : '';
+
+    return codigo.includes(filtro) || locCodigo.includes(filtro) || locNombre.includes(filtro);
   });
 
   const exportarElementoKML = (el) => {
     const nombre = el.codigo || el.nombre || 'Punto';
-    const lat = el.latitud || el.lat;
-    const lng = el.longitud || el.lng;
+    const lat = el.latitud ?? el.lat;
+    const lng = el.longitud ?? el.lng;
 
     const kmlContent = `<?xml version="1.0" encoding="UTF-8"?>
 <kml xmlns="http://www.opengis.net/kml/2.2">
@@ -375,8 +445,11 @@ function GestionKMZ() {
   };
 
   return (
-    <div style={{ padding: '30px', fontFamily: 'Segoe UI, sans-serif' }}>
-      <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '700', color: '#0f172a' }}>Importación y Exportación de Archivos KMZ / KML</h2>
+    <div style={{ padding: '24px 32px', backgroundColor: '#f8fafc', height: '100%', boxSizing: 'border-box', overflowY: 'auto', fontFamily: 'Segoe UI, sans-serif' }}>
+      <div style={{ marginBottom: '16px' }}>
+        <h2 style={{ margin: 0, fontSize: '1.25rem', fontWeight: '700', color: '#0f172a' }}>Importación y Exportación de Archivos KMZ / KML</h2>
+        <div style={{ width: '40px', height: '3px', backgroundColor: '#16a34a', marginTop: '4px', borderRadius: '2px' }}></div>
+      </div>
 
       {/* Pestañas */}
       <div style={{ display: 'flex', gap: '30px', borderBottom: '2px solid #e2e8f0', marginBottom: '25px', marginTop: '15px' }}>
@@ -389,8 +462,8 @@ function GestionKMZ() {
             fontSize: '0.95rem',
             fontWeight: 'bold',
             cursor: 'pointer',
-            color: pestanaActiva === 'importacion' ? '#10b981' : '#64748b',
-            borderBottom: pestanaActiva === 'importacion' ? '3px solid #10b981' : '3px solid transparent',
+            color: pestanaActiva === 'importacion' ? '#16a34a' : '#64748b',
+            borderBottom: pestanaActiva === 'importacion' ? '3px solid #16a34a' : '3px solid transparent',
             marginBottom: '-2px'
           }}
         >
@@ -405,8 +478,8 @@ function GestionKMZ() {
             fontSize: '0.95rem',
             fontWeight: 'bold',
             cursor: 'pointer',
-            color: pestanaActiva === 'exportacion' ? '#10b981' : '#64748b',
-            borderBottom: pestanaActiva === 'exportacion' ? '3px solid #10b981' : '3px solid transparent',
+            color: pestanaActiva === 'exportacion' ? '#16a34a' : '#64748b',
+            borderBottom: pestanaActiva === 'exportacion' ? '3px solid #16a34a' : '3px solid transparent',
             marginBottom: '-2px'
           }}
         >
@@ -432,69 +505,112 @@ function GestionKMZ() {
               onChange={handleFileUpload}
               style={{ marginBottom: '10px' }}
             />
-            <p style={{ fontSize: '0.85rem', color: '#94a3b8' }}>Archivos compatibles: .KMZ / .KML </p>
+            <p style={{ fontSize: '0.85rem', color: '#64748b' }}>Archivos compatibles: .KMZ / .KML</p>
           </div>
 
-          {cargando && <p style={{ marginTop: '15px', fontWeight: '600', color: '#10b981' }}>Procesando archivo ...</p>}
+          {cargando && <p style={{ marginTop: '15px', fontWeight: '600', color: '#16a34a' }}>Procesando archivo...</p>}
           
           {mensaje && (
-            <p style={{ marginTop: '15px', color: tipoMensaje === 'error' ? '#ef4444' : '#10b981', fontWeight: '600' }}>
+            <p style={{ marginTop: '15px', color: tipoMensaje === 'error' ? '#dc2626' : '#16a34a', fontWeight: '700' }}>
               {mensaje}
             </p>
           )}
 
           {elementosLeidos.length > 0 && (
-            <div style={{ marginTop: '30px' }}>
-              <table style={{ width: '100%', borderCollapse: 'collapse', backgroundColor: '#fff', borderRadius: '6px', overflow: 'hidden', border: '1px solid #e2e8f0' }}>
+            <div style={{ marginTop: '24px' }}>
+              {/* Selector de Localidad / Barrio para todo el lote a importar */}
+              <div style={{ marginBottom: '16px', backgroundColor: '#ffffff', padding: '14px 16px', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                  <label style={{ fontSize: '0.82rem', color: '#0369a1', fontWeight: '700' }}>
+                    Asignar Localidad / Barrio a todo el archivo:
+                  </label>
+                  <select
+                    value={localidadLoteImportacion}
+                    onChange={(e) => cambiarLocalidadTodoElLote(e.target.value)}
+                    style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', fontWeight: '600', fontSize: '0.82rem', color: '#0f172a' }}
+                  >
+                    {CATALOGO_LOCALIDADES.map((loc) => (
+                      <option key={loc.codigo} value={loc.codigo}>
+                        {loc.nombre}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <input
+                  type="text"
+                  placeholder="Filtrar elementos leídos..."
+                  value={filtroBusquedaImportacion}
+                  onChange={(e) => setFiltroBusquedaImportacion(e.target.value)}
+                  style={{ padding: '7px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.82rem', width: '240px' }}
+                />
+              </div>
+
+              <table style={{ width: '100%', borderCollapse: 'collapse', backgroundColor: '#fff', borderRadius: '8px', overflow: 'hidden', border: '1px solid #e2e8f0' }}>
                 <thead>
-                  <tr style={{ backgroundColor: '#0f172a', color: '#fff', textAlign: 'left' }}>
-                    <th style={{ padding: '12px' }}>Nombre / Etiqueta</th>
-                    <th style={{ padding: '12px' }}>Tipo Detectado</th>
-                    <th style={{ padding: '12px' }}>Latitud</th>
-                    <th style={{ padding: '12px' }}>Longitud</th>
+                  <tr style={{ backgroundColor: '#f8fafc', color: '#64748b', textAlign: 'left', fontSize: '0.78rem', textTransform: 'uppercase', borderBottom: '1px solid #e2e8f0' }}>
+                    <th style={{ padding: '12px 16px' }}>Nombre / Etiqueta</th>
+                    <th style={{ padding: '12px 16px' }}>Tipo Detectado</th>
+                    <th style={{ padding: '12px 16px' }}>Localidad / Barrio</th>
+                    <th style={{ padding: '12px 16px' }}>Latitud</th>
+                    <th style={{ padding: '12px 16px' }}>Longitud</th>
                   </tr>
                 </thead>
                 <tbody>
                   {elementosFiltradosImportacion.map((punto) => (
-                    <tr key={punto.id} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                      <td style={{ padding: '10px', fontWeight: '600' }}>{punto.nombre}</td>
-                      <td style={{ padding: '10px' }}>
+                    <tr key={punto.id} style={{ borderBottom: '1px solid #f1f5f9', fontSize: '0.85rem' }}>
+                      <td style={{ padding: '12px 16px', fontWeight: '600', color: '#0f172a' }}>{punto.nombre}</td>
+                      <td style={{ padding: '12px 16px' }}>
                         <span style={{ 
-                          padding: '3px 8px', 
+                          padding: '4px 10px', 
                           borderRadius: '4px', 
-                          fontSize: '0.8rem', 
-                          fontWeight: 'bold',
-                          backgroundColor: punto.tipo === 'NAP' ? '#e0f2fe' : punto.tipo === 'ONU' ? '#fef08a' : '#dcfce7',
-                          color: punto.tipo === 'NAP' ? '#0369a1' : punto.tipo === 'ONU' ? '#854d0e' : '#166534'
+                          fontSize: '0.75rem', 
+                          fontWeight: '700',
+                          backgroundColor: punto.tipo === 'NAP' ? '#e0f2fe' : punto.tipo === 'ONU' ? '#fef3c7' : '#dcfce7',
+                          color: punto.tipo === 'NAP' ? '#0369a1' : punto.tipo === 'ONU' ? '#b45309' : '#16a34a'
                         }}>
                           {punto.tipo}
                         </span>
                       </td>
-                      <td style={{ padding: '10px' }}>{punto.latitud}</td>
-                      <td style={{ padding: '10px' }}>{punto.longitud}</td>
+                      <td style={{ padding: '12px 16px' }}>
+                        <select
+                          value={punto.localidad || localidadLoteImportacion}
+                          onChange={(e) => cambiarLocalidadPuntoIndividual(punto.id, e.target.value)}
+                          style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #bae6fd', backgroundColor: '#e0f2fe', color: '#0369a1', fontSize: '0.75rem', fontWeight: '700', cursor: 'pointer' }}
+                        >
+                          {CATALOGO_LOCALIDADES.map((loc) => (
+                            <option key={loc.codigo} value={loc.codigo}>
+                              {loc.nombre}
+                            </option>
+                          ))}
+                        </select>
+                      </td>
+                      <td style={{ padding: '12px 16px', color: '#334155' }}>{punto.latitud}</td>
+                      <td style={{ padding: '12px 16px', color: '#334155' }}>{punto.longitud}</td>
                     </tr>
                   ))}
                 </tbody>
               </table>
 
-              <div style={{ display: 'flex', gap: '15px', alignItems: 'center', marginTop: '20px' }}>
+              <div style={{ display: 'flex', gap: '12px', alignItems: 'center', marginTop: '20px' }}>
                 <button 
-                  style={{ backgroundColor: guardando ? '#94a3b8' : '#10b981', color: '#fff', border: 'none', padding: '10px 20px', fontWeight: '700', borderRadius: '4px', cursor: guardando ? 'not-allowed' : 'pointer' }}
+                  style={{ backgroundColor: guardando ? '#94a3b8' : '#16a34a', color: '#ffffff', border: 'none', padding: '10px 20px', fontWeight: '700', fontSize: '0.82rem', borderRadius: '6px', cursor: guardando ? 'not-allowed' : 'pointer' }}
                   onClick={guardarInfraestructuraEnMapa}
                   disabled={guardando}
                 >
-                  {guardando ? 'Guardando infraestructura...' : 'Guardar infraestructura en el mapa'}
+                  {guardando ? 'Guardando Dispositivo...' : 'Guardar Dispositivo'}
                 </button>
 
                 <button
                   onClick={limpiarSeleccion}
                   style={{
-                    backgroundColor: '#ef4444',
-                    color: '#fff',
+                    backgroundColor: '#dc2626',
+                    color: '#ffffff',
                     border: 'none',
                     padding: '10px 20px',
                     fontWeight: '700',
-                    borderRadius: '4px',
+                    fontSize: '0.82rem',
+                    borderRadius: '6px',
                     cursor: 'pointer'
                   }}
                 >
@@ -509,74 +625,146 @@ function GestionKMZ() {
       {/* VISTA 2: EXPORTACIÓN */}
       {pestanaActiva === 'exportacion' && (
         <div style={{ marginTop: '20px' }}>
-          {cargandoExportacion && <p style={{ fontWeight: '600', color: '#10b981' }}>Cargando elementos registrados...</p>}
-          {mensajeExportacion && <p style={{ color: '#ef4444', fontWeight: '600' }}>{mensajeExportacion}</p>}
+          {cargandoExportacion && <p style={{ fontWeight: '600', color: '#16a34a' }}>Cargando elementos registrados...</p>}
+          {mensajeExportacion && <p style={{ color: '#dc2626', fontWeight: '700' }}>{mensajeExportacion}</p>}
 
           {!cargandoExportacion && (
             <div>
-              <div style={{ position: 'relative', marginBottom: '20px' }}>
+              {/* Buscador Global con soporte de siglas de Localidad */}
+              <div style={{ marginBottom: '16px', backgroundColor: '#ffffff', padding: '12px 16px', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', gap: '12px' }}>
+                <span style={{ fontSize: '0.8rem', fontWeight: '700', color: '#475569' }}>Buscador:</span>
                 <input 
                   type="text"
-                  placeholder="Buscador..."
+                  placeholder="Buscar Poste o NAP por Código o Localidad (ej. MX-B1, CM, BI, YDJ)..."
                   value={filtroBusquedaExportacion}
                   onChange={(e) => setFiltroBusquedaExportacion(e.target.value)}
                   style={{
-                    width: '100%',
-                    padding: '10px 14px',
+                    flex: 1,
+                    padding: '7px 12px',
                     borderRadius: '6px',
                     border: '1px solid #cbd5e1',
-                    fontSize: '0.95rem',
+                    fontSize: '0.82rem',
                     outline: 'none',
                     boxSizing: 'border-box',
                     backgroundColor: '#fff'
                   }}
                 />
+                {filtroBusquedaExportacion && (
+                  <button 
+                    onClick={() => setFiltroBusquedaExportacion('')}
+                    style={{ backgroundColor: '#e2e8f0', color: '#334155', border: 'none', padding: '7px 12px', borderRadius: '6px', fontSize: '0.78rem', fontWeight: '600', cursor: 'pointer' }}
+                  >
+                    Limpiar
+                  </button>
+                )}
               </div>
 
-              <table style={{ width: '100%', borderCollapse: 'collapse', backgroundColor: '#fff', borderRadius: '6px', overflow: 'hidden', border: '1px solid #e2e8f0' }}>
-                <thead>
-                  <tr style={{ backgroundColor: '#0f172a', color: '#fff', textAlign: 'left' }}>
-                    <th style={{ padding: '12px' }}>Código / Nombre</th>
-                    <th style={{ padding: '12px' }}>Latitud</th>
-                    <th style={{ padding: '12px' }}>Longitud</th>
-                    <th style={{ padding: '12px', textAlign: 'center' }}>Acción</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {elementosTablaExportar.length > 0 ? (
-                    elementosTablaExportar.map((el, index) => (
-                      <tr key={index} style={{ borderBottom: '1px solid #e2e8f0' }}>
-                        <td style={{ padding: '10px', fontWeight: '600' }}>{el.codigo || el.nombre}</td>
-                        <td style={{ padding: '10px' }}>{el.latitud || el.lat}</td>
-                        <td style={{ padding: '10px' }}>{el.longitud || el.lng}</td>
-                        <td style={{ padding: '10px', textAlign: 'center' }}>
-                          <button
-                            onClick={() => exportarElementoKML(el)}
-                            style={{
-                              backgroundColor: '#10b981',
-                              color: '#fff',
-                              border: 'none',
-                              padding: '6px 12px',
-                              borderRadius: '4px',
-                              fontWeight: '600',
-                              fontSize: '0.85rem',
-                              cursor: 'pointer'
-                            }}
-                          >
-                            Exportar KML
-                          </button>
+              {/* Botones de Filtro: TODOS, POSTES, NAP */}
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
+                <div style={{ display: 'flex', gap: '8px' }}>
+                  {[
+                    { id: 'TODOS', label: 'TODOS' },
+                    { id: 'POSTES', label: 'POSTES' },
+                    { id: 'NAP', label: 'NAP' }
+                  ].map((tab) => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setFiltroTipoExportacion(tab.id)}
+                      style={{
+                        padding: '8px 16px',
+                        borderRadius: '6px',
+                        border: 'none',
+                        backgroundColor: filtroTipoExportacion === tab.id ? '#16a34a' : '#010203',
+                        color: '#ffffff',
+                        fontSize: '0.82rem',
+                        fontWeight: '600',
+                        cursor: 'pointer'
+                      }}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              <div style={{ backgroundColor: '#ffffff', borderRadius: '8px', overflow: 'hidden', border: '1px solid #e2e8f0' }}>
+                <table style={{ width: '100%', borderCollapse: 'collapse', color: '#1e293b', fontSize: '0.85rem', textAlign: 'left' }}>
+                  <thead>
+                    <tr style={{ borderBottom: '1px solid #e2e8f0', backgroundColor: '#f8fafc', color: '#64748b', fontSize: '0.78rem', textTransform: 'uppercase' }}>
+                      <th style={{ padding: '12px 16px' }}>Código / Nombre</th>
+                      <th style={{ padding: '12px 16px' }}>Localidad / Barrio</th>
+                      <th style={{ padding: '12px 16px' }}>Latitud</th>
+                      <th style={{ padding: '12px 16px' }}>Longitud</th>
+                      <th style={{ padding: '12px 16px', textAlign: 'right' }}>Acciones</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {elementosTablaExportar.length > 0 ? (
+                      elementosTablaExportar.map((el, index) => {
+                        const locCodigo = el.localidad || 'MX-B1';
+                        const locInfo = CATALOGO_LOCALIDADES.find(l => l.codigo === locCodigo);
+
+                        return (
+                          <tr key={index} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                            <td style={{ padding: '12px 16px', fontWeight: '600', color: '#0f172a' }}>
+                              {el.codigo || el.nombre}
+                            </td>
+                            <td style={{ padding: '12px 16px' }}>
+                              <span 
+                                title={locInfo ? locInfo.nombre : locCodigo}
+                                style={{ backgroundColor: '#e0f2fe', color: '#0369a1', padding: '3px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: '700' }}
+                              >
+                                {locCodigo}
+                              </span>
+                            </td>
+                            <td style={{ padding: '12px 16px', color: '#334155' }}>{el.latitud ?? el.lat}</td>
+                            <td style={{ padding: '12px 16px', color: '#334155' }}>{el.longitud ?? el.lng}</td>
+                            <td style={{ padding: '12px 16px', textAlign: 'right' }}>
+                              <button
+                                onClick={() => irAlMapaGeolocalizacion(el)}
+                                style={{
+                                  backgroundColor: '#0284c7',
+                                  color: '#ffffff',
+                                  border: 'none',
+                                  padding: '6px 12px',
+                                  borderRadius: '4px',
+                                  fontWeight: '600',
+                                  fontSize: '0.75rem',
+                                  cursor: 'pointer',
+                                  marginRight: '8px'
+                                }}
+                              >
+                                Ubicar Pin
+                              </button>
+                              <button
+                                onClick={() => exportarElementoKML(el)}
+                                style={{
+                                  backgroundColor: '#16a34a',
+                                  color: '#ffffff',
+                                  border: 'none',
+                                  padding: '6px 12px',
+                                  borderRadius: '4px',
+                                  fontWeight: '600',
+                                  fontSize: '0.75rem',
+                                  cursor: 'pointer'
+                                }}
+                              >
+                                Exportar KML
+                              </button>
+                            </td>
+                          </tr>
+                        );
+                      })
+                    ) : (
+                      <tr>
+                        <td colSpan="5" style={{ padding: '24px', textAlign: 'center', color: '#64748b' }}>
+                          No se encontraron Postes o Cajas NAP que coincidan con la búsqueda.
                         </td>
                       </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td colSpan="4" style={{ padding: '20px', textAlign: 'center', color: '#64748b' }}>
-                        No se encontraron elementos coincidentes.
-                      </td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
+                    )}
+                  </tbody>
+                </table>
+              </div>
             </div>
           )}
         </div>
