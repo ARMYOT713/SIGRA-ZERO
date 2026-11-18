@@ -9,8 +9,7 @@ function Usuarios() {
   const [elementoSeleccionado, setElementoSeleccionado] = useState(null);
   const [mostrarPassword, setMostrarPassword] = useState(false);
 
-  // Estado para la notificación flotante (toast)
-  const [notificacion, setNotificacion] = useState({ visible: false, mensaje: '' });
+  const [notificacion, setNotificacion] = useState({ visible: false, mensaje: '', tipo: 'exito' });
 
   const [form, setForm] = useState({
     nombre_completo: '',
@@ -20,12 +19,11 @@ function Usuarios() {
     telefono: ''
   });
 
-  // Función para mostrar la notificación flotante por 3 segundos
-  const mostrarAlertaFlotante = (mensaje) => {
-    setNotificacion({ visible: true, mensaje });
+  const mostrarAlertaFlotante = (mensaje, tipo = 'exito') => {
+    setNotificacion({ visible: true, mensaje, tipo });
     setTimeout(() => {
-      setNotificacion({ visible: false, mensaje: '' });
-    }, 3000);
+      setNotificacion(prev => ({ ...prev, visible: false }));
+    }, 4000);
   };
 
   const obtenerHeaders = () => {
@@ -90,10 +88,12 @@ function Usuarios() {
           body: JSON.stringify(form)
         });
         if (response.ok) {
-          mostrarAlertaFlotante("Usuario editado con éxito");
+          setModalAbierto(false);
+          mostrarAlertaFlotante("Datos actualizados con éxito.");
           obtenerUsuarios();
         } else {
-          alert("Error al editar el usuario");
+          const errorData = await response.json().catch(() => ({}));
+          mostrarAlertaFlotante(errorData.error || errorData.message || "Error al editar el usuario.", "error");
         }
       } else {
         const response = await fetch('https://sigra-zero.onrender.com/api/usuarios', {
@@ -102,15 +102,17 @@ function Usuarios() {
           body: JSON.stringify(form)
         });
         if (response.ok) {
-          mostrarAlertaFlotante("Usuario creado con éxito");
+          setModalAbierto(false);
+          mostrarAlertaFlotante("Registro exitoso.");
           obtenerUsuarios();
         } else {
-          alert("Error al crear el usuario");
+          const errorData = await response.json().catch(() => ({}));
+          mostrarAlertaFlotante(errorData.error || errorData.message || "Error al crear el usuario.", "error");
         }
       }
-      setModalAbierto(false);
     } catch (error) {
       console.error('Error al guardar el usuario:', error);
+      mostrarAlertaFlotante("Error de conexión al guardar el registro.", "error");
     }
   };
 
@@ -121,58 +123,23 @@ function Usuarios() {
         headers: obtenerHeaders()
       });
       if (response.ok) {
-        mostrarAlertaFlotante("Usuario eliminado con éxito");
+        setModalEliminar(false);
+        setElementoSeleccionado(null);
+        mostrarAlertaFlotante("Usuario eliminado con éxito del sistema.");
         obtenerUsuarios();
       } else {
-        alert("Error al eliminar el usuario");
+        const errorData = await response.json().catch(() => ({}));
+        mostrarAlertaFlotante(errorData.error || errorData.message || "Error al eliminar el usuario.", "error");
       }
-      setModalEliminar(false);
-      setElementoSeleccionado(null);
     } catch (error) {
       console.error('Error al eliminar el usuario:', error);
+      mostrarAlertaFlotante("Error de conexión al intentar eliminar el usuario.", "error");
     }
   };
 
   return (
     <div style={{ padding: '24px 32px', backgroundColor: '#f8fafc', height: '100%', boxSizing: 'border-box', overflowY: 'auto', position: 'relative' }}>
       
-      {/* NOTIFICACIÓN FLOTANTE CON PALOMITA */}
-      {notificacion.visible && (
-        <div style={{
-          position: 'fixed',
-          top: '20px',
-          right: '30px',
-          backgroundColor: '#ffffff',
-          color: '#0f172a',
-          padding: '12px 20px',
-          borderRadius: '8px',
-          boxShadow: '0 4px 12px rgba(0,0,0,0.15)',
-          display: 'flex',
-          alignItems: 'center',
-          gap: '12px',
-          zIndex: 4000,
-          border: '1px solid #e2e8f0',
-          borderLeft: '4px solid #16a34a',
-          animation: 'fadeIn 0.3s ease-in-out'
-        }}>
-          <div style={{
-            backgroundColor: '#dcfce7',
-            color: '#16a34a',
-            borderRadius: '50%',
-            width: '24px',
-            height: '24px',
-            display: 'flex',
-            alignItems: 'center',
-            justifyContent: 'center',
-            fontWeight: 'bold',
-            fontSize: '0.85rem'
-          }}>
-            ✓
-          </div>
-          <span style={{ fontSize: '0.85rem', fontWeight: '600' }}>{notificacion.mensaje}</span>
-        </div>
-      )}
-
       {/* CABECERA CON TÍTULO Y BOTÓN NUEVO USUARIO */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '20px' }}>
         <div>
@@ -192,8 +159,7 @@ function Usuarios() {
             borderRadius: '6px',
             fontSize: '0.82rem',
             fontWeight: '700',
-            cursor: 'pointer',
-            boxShadow: '0 2px 4px rgba(0,0,0,0.1)'
+            cursor: 'pointer'
           }}
         >
           + Nuevo Usuario
@@ -201,7 +167,7 @@ function Usuarios() {
       </div>
 
       {/* TABLA DE USUARIOS */}
-      <div style={{ backgroundColor: '#ffffff', borderRadius: '8px', overflow: 'hidden', boxShadow: '0 2px 8px rgba(0,0,0,0.06)', border: '1px solid #e2e8f0' }}>
+      <div style={{ backgroundColor: '#ffffff', borderRadius: '8px', overflow: 'hidden', border: '1px solid #e2e8f0' }}>
         <table style={{ width: '100%', borderCollapse: 'collapse', color: '#1e293b', fontSize: '0.85rem', textAlign: 'left' }}>
           <thead>
             <tr style={{ borderBottom: '1px solid #e2e8f0', backgroundColor: '#f8fafc', color: '#64748b', fontSize: '0.78rem', textTransform: 'uppercase' }}>
@@ -220,7 +186,7 @@ function Usuarios() {
                 </td>
               </tr>
             ) : (
-              usuarios.map((item, index) => (
+              usuarios.map((item) => (
                 <React.Fragment key={item.id_usuario}>
                   <tr 
                     style={{ 
@@ -248,19 +214,19 @@ function Usuarios() {
                     <td style={{ padding: '12px 16px', textAlign: 'right' }}>
                       <button 
                         onClick={() => setFilaExpandida(filaExpandida === item.id_usuario ? null : item.id_usuario)}
-                        style={{ backgroundColor: '#e2e8f0', color: '#334155', border: '1px solid #cbd5e1', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', marginRight: '8px', fontSize: '0.75rem', fontWeight: '600' }}
+                        style={{ backgroundColor: '#475569', color: '#ffffff', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', marginRight: '6px', fontSize: '0.75rem', fontWeight: '600' }}
                       >
-                        {filaExpandida === item.id_usuario ? 'Ocultar' : 'Ver detalles'}
+                        {filaExpandida === item.id_usuario ? 'Ocultar' : 'Detalles'}
                       </button>
                       <button 
                         onClick={(e) => abrirModalEditar(item, e)}
-                        style={{ backgroundColor: '#fef08a', color: '#854d0e', border: '1px solid #fde047', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', marginRight: '8px', fontSize: '0.75rem', fontWeight: '600' }}
+                        style={{ backgroundColor: '#d97706', color: '#ffffff', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', marginRight: '6px', fontSize: '0.75rem', fontWeight: '600' }}
                       >
                         Editar
                       </button>
                       <button 
                         onClick={(e) => abrirModalEliminar(item, e)}
-                        style={{ backgroundColor: '#fee2e2', color: '#991b1b', border: '1px solid #fecaca', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '600' }}
+                        style={{ backgroundColor: '#dc2626', color: '#ffffff', border: 'none', padding: '5px 10px', borderRadius: '4px', cursor: 'pointer', fontSize: '0.75rem', fontWeight: '600' }}
                       >
                         Eliminar
                       </button>
@@ -317,7 +283,6 @@ function Usuarios() {
                 />
               </div>
 
-              {/* CAMPO CONTRASEÑA CON EL BOTÓN DEL OJITO */}
               <div>
                 <label style={{ fontSize: '0.75rem', color: '#64748b', display: 'block', marginBottom: '4px', fontWeight: '600' }}>Contraseña:</label>
                 <div style={{ position: 'relative', display: 'flex', alignItems: 'center' }}>
@@ -376,19 +341,19 @@ function Usuarios() {
                 />
               </div>
 
-              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '8px', marginTop: '10px' }}>
+              <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '10px', marginTop: '10px' }}>
                 <button 
                   type="button" 
                   onClick={() => setModalAbierto(false)}
-                  style={{ backgroundColor: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', padding: '8px 14px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: '600', cursor: 'pointer' }}
+                  style={{ backgroundColor: '#e2e8f0', color: '#334155', border: 'none', padding: '9px 16px', borderRadius: '6px', fontSize: '0.82rem', fontWeight: '600', cursor: 'pointer' }}
                 >
                   Cancelar
                 </button>
                 <button 
                   type="submit" 
-                  style={{ backgroundColor: '#16a34a', color: '#ffffff', border: 'none', padding: '8px 16px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: '700', cursor: 'pointer' }}
+                  style={{ backgroundColor: '#16a34a', color: '#ffffff', border: 'none', padding: '9px 20px', borderRadius: '6px', fontSize: '0.82rem', fontWeight: '700', cursor: 'pointer' }}
                 >
-                  {modoEdicion ? 'Guardar Cambios' : 'Crear Usuario'}
+                  {modoEdicion ? 'Actualizar' : 'Guardar'}
                 </button>
               </div>
             </form>
@@ -399,26 +364,48 @@ function Usuarios() {
       {/* MODAL ELIMINAR */}
       {modalEliminar && (
         <div style={{ position: 'fixed', top: 0, left: 0, right: 0, bottom: 0, backgroundColor: 'rgba(0,0,0,0.5)', display: 'flex', justifyContent: 'center', alignItems: 'center', zIndex: 3000 }}>
-          <div style={{ backgroundColor: '#ffffff', padding: '24px', borderRadius: '10px', width: '360px', boxShadow: '0 10px 25px rgba(0,0,0,0.15)', color: '#1e293b', textAlign: 'center', border: '1px solid #e2e8f0' }}>
-            <h4 style={{ margin: '0 0 10px 0', fontSize: '1rem', color: '#dc2626' }}>¿Estás seguro de eliminar este usuario?</h4>
-            <p style={{ fontSize: '0.8rem', color: '#64748b', marginBottom: '20px' }}>
-              Se eliminará al usuario <strong style={{ color: '#0f172a' }}>{elementoSeleccionado?.nombre_completo}</strong>.
+          <div style={{ backgroundColor: '#ffffff', padding: '24px 28px', borderRadius: '10px', width: '400px', textAlign: 'center' }}>
+            <h3 style={{ margin: '0 0 10px 0', fontSize: '1.1rem', color: '#dc2626' }}>Eliminar Usuario</h3>
+            <p style={{ fontSize: '0.85rem', color: '#475569', marginBottom: '20px' }}>
+              ¿Estás segura de que deseas eliminar al usuario <strong>{elementoSeleccionado?.nombre_completo}</strong>?
             </p>
             <div style={{ display: 'flex', justifyContent: 'center', gap: '10px' }}>
               <button 
                 onClick={() => setModalEliminar(false)}
-                style={{ backgroundColor: '#f1f5f9', color: '#475569', border: '1px solid #cbd5e1', padding: '8px 14px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: '600', cursor: 'pointer' }}
+                style={{ backgroundColor: '#e2e8f0', color: '#334155', border: 'none', padding: '8px 16px', borderRadius: '6px', fontSize: '0.82rem', fontWeight: '600', cursor: 'pointer' }}
               >
                 Cancelar
               </button>
               <button 
                 onClick={confirmarEliminar}
-                style={{ backgroundColor: '#dc2626', color: '#ffffff', border: 'none', padding: '8px 16px', borderRadius: '6px', fontSize: '0.8rem', fontWeight: '700', cursor: 'pointer' }}
+                style={{ backgroundColor: '#dc2626', color: '#ffffff', border: 'none', padding: '8px 16px', borderRadius: '6px', fontSize: '0.82rem', fontWeight: '700', cursor: 'pointer' }}
               >
                 Sí, Eliminar
               </button>
             </div>
           </div>
+        </div>
+      )}
+
+      {/* NOTIFICACIÓN FLOTANTE ESTANDARIZADA EN LA ESQUINA INFERIOR DERECHA */}
+      {notificacion.visible && (
+        <div style={{
+          position: 'fixed',
+          bottom: '24px',
+          right: '24px',
+          backgroundColor: notificacion.tipo === 'error' ? '#dc2626' : '#16a34a',
+          color: '#ffffff',
+          padding: '12px 20px',
+          borderRadius: '8px',
+          boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+          zIndex: 9999,
+          fontSize: '0.85rem',
+          fontWeight: '700',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px'
+        }}>
+          <span>{notificacion.mensaje}</span>
         </div>
       )}
 
