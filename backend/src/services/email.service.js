@@ -1,36 +1,34 @@
-const nodemailer = require('nodemailer');
+async function sendEmail({ to, subject, html }) {
+  const BREVO_API_KEY = process.env.BREVO_API_KEY;
 
-// Configuramos el transporte leyendo las variables del entorno del sistema
-const transporter = nodemailer.createTransport({
-  host: process.env.SMTP_HOST,
-  port: Number(process.env.SMTP_PORT) || 587,
-  secure: process.env.SMTP_SECURE === 'true', // true para 465, false para otros puertos
-  auth: {
-    user: process.env.SMTP_USER,
-    pass: process.env.SMTP_PASS,
-  },
-});
-
-/**
- * Servicio genérico y reutilizable para enviar correos en la plataforma
- * @param {Object} options - { to, subject, html }
- */
-const sendEmail = async ({ to, subject, html }) => {
-  try {
-    const mailOptions = {
-      from: `"${process.env.APP_NAME || 'Soporte SIGRA'}" <${process.env.SMTP_FROM_EMAIL}>`,
-      to,
-      subject,
-      html,
-    };
-
-    const info = await transporter.sendMail(mailOptions);
-    console.log('Correo enviado exitosamente:', info.messageId);
-    return info;
-  } catch (error) {
-    console.error('Error al enviar el correo a través del servicio:', error);
-    throw new Error('No se pudo enviar el correo electrónico.');
+  if (!BREVO_API_KEY) {
+    throw new Error("Falta configurar la variable de entorno BREVO_API_KEY en el servidor de Render.");
   }
-};
+
+  const response = await fetch('https://api.brevo.com/v3/smtp/email', {
+    method: 'POST',
+    headers: {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json',
+      'api-key': BREVO_API_KEY
+    },
+    body: JSON.stringify({
+      sender: { 
+        name: "SIGRA - Red Winfored", 
+        email: "no-reply@sigrawinfored.com" 
+      },
+      to: [{ email: to }],
+      subject: subject,
+      htmlContent: html
+    })
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.message || 'Error al enviar el correo mediante la API de Brevo.');
+  }
+
+  return await response.json();
+}
 
 module.exports = { sendEmail };
