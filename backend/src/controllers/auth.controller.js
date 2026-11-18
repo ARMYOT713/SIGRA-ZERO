@@ -213,18 +213,36 @@ async function forgotPassword(req, res) {
     const resetLink = `${frontendUrl}/reset-password?token=${resetToken}`;
 
     const htmlContent = `
-      <div style="font-family: 'Segoe UI', Arial, sans-serif; color: #0f172a; max-width: 600px; margin: 0 auto; padding: 24px; border: 1px solid #e2e8f0; border-top: 4px solid #dc2626; border-radius: 8px;">
-        <h2 style="color: #0f172a; text-align: center; margin-top: 0;">Recuperación de Contraseña - SIGRA</h2>
-        <p>Hola, <strong>${usuario.nombre_completo}</strong> (ID: <strong>${usuario.id_usuario}</strong>):</p>
-        <p>Se ha generado una solicitud para restablecer tu contraseña en <strong>SIGRA (Red Winfored)</strong>. Haz clic en el siguiente botón para crear una nueva contraseña:</p>
-        <div style="text-align: center; margin: 28px 0;">
-          <a href="${resetLink}" style="background-color: #dc2626; color: #ffffff; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; display: inline-block;">Restablecer Contraseña</a>
+      <div style="font-family: 'Segoe UI', Arial, sans-serif; color: #0f172a; max-width: 580px; margin: 0 auto; padding: 32px 28px; background-color: #ffffff; border: 1px solid #e2e8f0; border-radius: 12px;">
+        <div style="text-align: center; margin-bottom: 22px;">
+          <img src="${frontendUrl}/logo.png" alt="Winfored Logo" style="height: 36px; vertical-align: middle;" />
+          <span style="display: inline-block; width: 1px; height: 26px; background-color: #cbd5e1; margin: 0 14px; vertical-align: middle;"></span>
+          <span style="font-size: 24px; font-weight: 600; letter-spacing: 2px; color: #0f172a; vertical-align: middle;">SIGRA</span>
         </div>
-        <p style="font-size: 13px; color: #64748b;">Este enlace es personal y expirará en 15 minutos.</p>
+
+        <h2 style="color: #0f172a; text-align: center; font-size: 20px; margin: 0 0 20px 0;">Solicitud de Recuperación de Acceso</h2>
+
+        <p style="font-size: 14px; color: #334155; margin: 0 0 14px 0;">Hola, <strong>${usuario.nombre_completo}</strong>:</p>
+
+        <p style="font-size: 14px; color: #334155; line-height: 1.5; margin: 0 0 26px 0;">
+          Has solicitado restablecer tu contraseña en <strong>SIGRA</strong>. Haz clic en el siguiente botón para continuar:
+        </p>
+
+        <div style="text-align: center; margin: 28px 0;">
+          <a href="${resetLink}" style="background-color: #dc2626; color: #ffffff; padding: 12px 28px; text-decoration: none; border-radius: 6px; font-weight: 700; font-size: 14px; display: inline-block;">Restablecer Contraseña</a>
+        </div>
+
+        <p style="font-size: 13px; color: #64748b; margin: 24px 0 10px 0;">
+          Este enlace es seguro y expirará en exactamente 15 minutos.
+        </p>
+
+        <p style="font-size: 13px; color: #64748b; margin: 0;">
+          Si tú no solicitaste este cambio, puedes ignorar este mensaje de forma segura.
+        </p>
       </div>
     `;
 
-    // Envío directo con Brevo: si falla, lanza el error al catch principal (500) para mostrar el motivo real
+    // Envío directo con Brevo
     await sendEmail({
       to: usuario.correo,
       subject: "Recuperación de Contraseña - SIGRA",
