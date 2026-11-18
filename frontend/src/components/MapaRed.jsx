@@ -16,7 +16,6 @@ import { iconoNap, iconoPoste, iconoCliente, iconoOnu } from '../utils/mapIcon';
 import { calcularDistancia } from '../utils/haversine';
 import { obtenerDispositivosMapa } from '../services/api';
 
-
 const { BaseLayer } = LayersControl;
 
 const iconoGpsUsuario = L.icon({
@@ -60,19 +59,41 @@ function InvalidarTamanoMapa({ panelAbierto }) {
 
   return null;
 }
-const obtenerIconoBaseSegunTipo = (disp) => {
-  const tipoUpper = (disp.tipo || '').toUpperCase();
-  const codigoUpper = (disp.codigo || disp.cliente_ref || '').toUpperCase();
-  
-  let iconoBase = iconoCliente;
-  if (tipoUpper.includes('POSTE')) {
-    iconoBase = iconoPoste;
-  } else if (tipoUpper.includes('NAP')) {
-    iconoBase = iconoNap;
-  } else if (tipoUpper.includes('ONU') || codigoUpper.includes('ONU') || disp.es_onu) {
-    iconoBase = iconoOnu;
+
+const clasificarTipoDispositivo = (disp) => {
+  if (!disp) return 'CLIENTE';
+  if (disp.tipo === 'MI_UBICACION' || disp.tipo === 'UBICACION_EXTERNA') return disp.tipo;
+
+  const tipoUpper = String(disp.tipo || '').toUpperCase();
+  const codigoUpper = String(disp.codigo || disp.cliente_ref || '').toUpperCase();
+
+  if (tipoUpper.includes('POSTE')) return 'POSTE';
+  if (tipoUpper.includes('NAP')) return 'NAP';
+  if (tipoUpper.includes('ONU') || codigoUpper.includes('ONU') || disp.es_onu === true) return 'ONU';
+  return 'CLIENTE';
+};
+
+const obtenerClaveUnicaDispositivo = (disp) => {
+  if (!disp) return '';
+  if (disp.idUnico && (disp.tipo === 'MI_UBICACION' || disp.tipo === 'UBICACION_EXTERNA')) {
+    return disp.idUnico;
   }
-  return iconoBase;
+  const categoria = clasificarTipoDispositivo(disp);
+  const rawId = disp.id ?? disp.poste_id ?? disp.id_nap ?? disp.id_cliente ?? disp.id_onus ?? '';
+  return `${categoria}-${rawId}`;
+};
+
+const obtenerIconoBaseSegunTipo = (disp) => {
+  const categoria = clasificarTipoDispositivo(disp);
+  if (categoria === 'POSTE') return iconoPoste;
+  if (categoria === 'NAP') return iconoNap;
+  if (categoria === 'ONU') return iconoOnu;
+  return iconoCliente;
+};
+
+const formatearLocalidad = (loc) => {
+  if (!loc) return 'MX-B1';
+  return String(loc).trim().toUpperCase().replace(/_/g, '-');
 };
 
 function ControlVistaMapa({ centro, zoomForzado }) {
@@ -99,6 +120,7 @@ function MapaRed() {
   const [panelAbierto, setPanelAbierto] = useState(false);
   const [origen, setOrigen] = useState(null); 
   const [destino, setDestino] = useState(null); 
+  const [notificacion, setNotificacion] = useState({ visible: false, mensaje: '', tipo: 'exito' });
   
   const location = useLocation();
   const navigate = useNavigate();
@@ -114,6 +136,13 @@ function MapaRed() {
   const [mostrarSugerencias, setMostrarSugerencias] = useState(false);
   const [filtroTipo, setFiltroTipo] = useState('TODOS');
   const [ubicacionExterna, setUbicacionExterna] = useState(null);
+
+  const mostrarAlertaFlotante = (mensaje, tipo = 'exito') => {
+    setNotificacion({ visible: true, mensaje, tipo });
+    setTimeout(() => {
+      setNotificacion(prev => ({ ...prev, visible: false }));
+    }, 4000);
+  };
 
   const cargarDatosMapa = async () => {
     try {
@@ -134,22 +163,23 @@ function MapaRed() {
         if (urlId) {
           const urlTipo = params.get('tipo')?.toLowerCase() || '';
           encontrado = items.find(disp => {
-            const idUnico = disp.id ?? disp.poste_id ?? disp.id_nap ?? disp.id_cliente ?? disp.id_onus;
-            const coincideId = String(idUnico) === String(urlId);
-            
-            if (!urlTipo) return coincideId;
+            const rawId = disp.id ?? disp.poste_id ?? disp.id_nap ?? disp.id_cliente ?? disp.id_onus;
+            const coincideId = String(rawId) === String(urlId);
+            if (!coincideId) return false;
+            if (!urlTipo) return true;
 
-            const tipoDisp = (disp.tipo || '').toLowerCase();
-            if (urlTipo.includes('nap')) return coincideId && tipoDisp.includes('nap');
-            if (urlTipo.includes('cliente')) return coincideId && (tipoDisp.includes('cliente') || disp.nombre_completo || disp.cliente_ref);
-            if (urlTipo.includes('poste')) return coincideId && tipoDisp.includes('poste');
+            const categoria = clasificarTipoDispositivo(disp);
+            if (urlTipo.includes('nap')) return categoria === 'NAP';
+            if (urlTipo.includes('poste')) return categoria === 'POSTE';
+            if (urlTipo.includes('onu')) return categoria === 'ONU';
+            if (urlTipo.includes('cliente')) return categoria === 'CLIENTE' || categoria === 'ONU';
 
-            return coincideId;
+            return true;
           });
         }
 
         if (encontrado) {
-          const idUnico = encontrado.id ?? encontrado.poste_id ?? encontrado.id_nap ?? encontrado.id_cliente ?? encontrado.id_onus;
+          const idUnico = obtenerClaveUnicaDispositivo(encontrado);
           const dispConId = { ...encontrado, idUnico };
           setDispositivoSeleccionado(dispConId);
           setPanelAbierto(true);
@@ -210,7 +240,7 @@ function MapaRed() {
     }
 
     if (!navigator.geolocation) {
-      alert("Tu navegador no soporta geolocalización.");
+      mostrarAlertaFlotante("Tu navegador no soporta geolocalización.", "error");
       return;
     }
 
@@ -234,10 +264,11 @@ function MapaRed() {
         }
         setCentroMapa([latUser, lngUser]);
         setZoomMapa(18);
+        mostrarAlertaFlotante("Ubicación GPS activada con éxito.");
       },
       (error) => {
         console.error("Error al obtener GPS:", error);
-        alert("No se pudo obtener la ubicación actual. Revisa los permisos del navegador.");
+        mostrarAlertaFlotante("No se pudo obtener la ubicación actual. Revisa los permisos del navegador.", "error");
       },
       { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
     );
@@ -286,7 +317,7 @@ function MapaRed() {
       const filtrados = dispositivos.filter(disp => {
         const codigo = (disp.codigo || disp.codigo_nap || disp.nombre || '').toLowerCase().replace(/_/g, '-');
         const cliente = (disp.nombre_completo || disp.cliente_ref || '').toLowerCase();
-        const tipo = (disp.tipo || '').toLowerCase();
+        const categoria = clasificarTipoDispositivo(disp).toLowerCase();
         const serie = (disp.no_serie || '').toLowerCase();
 
         const localidad = (disp.localidad || '').toLowerCase().replace(/_/g, '-');
@@ -296,7 +327,7 @@ function MapaRed() {
         return (
           codigo.includes(termino) ||
           cliente.includes(termino) ||
-          tipo.includes(termino) ||
+          categoria.includes(termino) ||
           serie.includes(termino) ||
           localidad.includes(termino) ||
           barrio.includes(termino) ||
@@ -355,8 +386,8 @@ function MapaRed() {
       e.originalEvent.stopPropagation();
     }
 
-    const idUnico = disp.id ?? disp.poste_id ?? disp.id_nap ?? disp.id_cliente ?? disp.id_onus;
-    const dispActualizado = dispositivos.find(d => String(d.id ?? d.poste_id ?? d.id_nap ?? d.id_cliente ?? d.id_onus) === String(idUnico)) || disp;
+    const idUnico = obtenerClaveUnicaDispositivo(disp);
+    const dispActualizado = dispositivos.find(d => obtenerClaveUnicaDispositivo(d) === idUnico) || disp;
 
     const dispConId = { ...dispActualizado, idUnico };
     const lat = parseFloat(dispConId.latitud ?? dispConId.lat);
@@ -384,20 +415,27 @@ function MapaRed() {
 
   const obtenerNombrePunto = (punto) => {
     if (!punto) return '';
+    const categoria = clasificarTipoDispositivo(punto);
+    if (categoria === 'ONU') {
+      return punto.cliente_ref || punto.codigo || punto.nombre_completo || 'ONU';
+    }
     if (punto.nombre_completo) return punto.nombre_completo;
     if (punto.cliente_ref) return punto.cliente_ref;
     return punto.codigo || punto.codigo_nap || punto.nombre || 'Dispositivo';
   };
 
   const obtenerEstatusPunto = (punto) => {
-    if (!punto) return 'Activo';
-    const valor = punto.estado ?? punto.estatus ?? punto.status ?? punto.state ?? 'Activo';
-    return String(valor).trim();
+    if (!punto) return 'ACTIVO';
+    const valor = punto.estado ?? punto.estatus ?? punto.status ?? punto.state ?? 'ACTIVO';
+    return String(valor).trim().toUpperCase();
   };
 
-  const esEstatusActivo = (estatusStr) => {
-    const val = (estatusStr || '').toLowerCase().trim();
-    return val === 'activo' || val === 'activado';
+  const obtenerColorTextoEstatus = (estatusStr) => {
+    const val = (estatusStr || '').toUpperCase().trim();
+    if (val === 'ACTIVO' || val === 'ACTIVADO' || val === 'TRUE') return '#16a34a';
+    if (val.includes('SUSP')) return '#d97706';
+    if (val.includes('MANT')) return '#0284c7';
+    return '#dc2626';
   };
 
   const obtenerDistanciaFormateada = () => {
@@ -445,15 +483,9 @@ function MapaRed() {
   };
 
   const dispositivosFiltrados = dispositivos.filter(disp => {
-    const tipoUpper = (disp.tipo || '').toUpperCase();
-    const esCliente = tipoUpper.includes('CLIENTE') || disp.nombre_completo || disp.cliente_ref;
-    const esNap = tipoUpper.includes('NAP');
-    const esPoste = tipoUpper.includes('POSTE');
-
-    if (filtroTipo === 'POSTE' && !esPoste) return false;
-    if (filtroTipo === 'NAP' && !esNap) return false;
-    if (filtroTipo === 'CLIENTE' && !esCliente) return false;
-    return true;
+    if (filtroTipo === 'TODOS') return true;
+    const categoria = clasificarTipoDispositivo(disp);
+    return categoria === filtroTipo;
   });
 
   const infoDistancia = obtenerDistanciaFormateada();
@@ -463,8 +495,8 @@ function MapaRed() {
   const renderizarDetallesTecnicosCompletos = (disp) => {
     if (!disp) return null;
 
-    const idUnico = disp.id ?? disp.poste_id ?? disp.id_nap ?? disp.id_cliente ?? disp.id_onus;
-    const dispFresca = dispositivos.find(d => String(d.id ?? d.poste_id ?? d.id_nap ?? d.id_cliente ?? d.id_onus) === String(idUnico)) || disp;
+    const claveActual = obtenerClaveUnicaDispositivo(disp);
+    const dispFresca = dispositivos.find(d => obtenerClaveUnicaDispositivo(d) === claveActual) || disp;
 
     if (dispFresca.tipo === 'MI_UBICACION') {
       return (
@@ -490,57 +522,85 @@ function MapaRed() {
       );
     }
 
-    const tipoUpper = (dispFresca.tipo || '').toUpperCase();
-    const esCliente = tipoUpper.includes('CLIENTE') || dispFresca.nombre_completo || dispFresca.cliente_ref;
-    const esNap = tipoUpper.includes('NAP');
-    const esPoste = tipoUpper.includes('POSTE');
+    const categoria = clasificarTipoDispositivo(dispFresca);
+    const esCliente = categoria === 'CLIENTE';
+    const esOnu = categoria === 'ONU';
+    const esNap = categoria === 'NAP';
+    const esPoste = categoria === 'POSTE';
 
-    const identificador = dispFresca.codigo || dispFresca.codigo_nap || dispFresca.nombre || dispFresca.identificador || 'S/N';
+    const identificador = dispFresca.codigo || dispFresca.codigo_nap || dispFresca.cliente_ref || dispFresca.nombre || dispFresca.identificador || 'S/N';
     const estadoStr = obtenerEstatusPunto(dispFresca);
+    const localidadFormateada = formatearLocalidad(dispFresca.localidad || dispFresca.siglas || dispFresca.barrio);
 
     let napsAsociadasAlPoste = [];
     if (esPoste) {
       const idPosteActual = dispFresca.poste_id ?? dispFresca.id;
-      napsAsociadasAlPoste = dispositivos.filter(d => {
-        const dTipo = (d.tipo || '').toUpperCase();
+      const textoNapsDesdeBackend = dispFresca.nap_asociada && dispFresca.nap_asociada !== 'Sin NAP asociada'
+        ? dispFresca.nap_asociada.split(',').map(s => s.trim())
+        : [];
+
+      const napsFiltradas = dispositivos.filter(d => {
+        if (clasificarTipoDispositivo(d) !== 'NAP') return false;
         const dPosteId = d.poste_id ?? d.id_poste ?? d.posteId;
-        return dTipo.includes('NAP') && String(dPosteId) === String(idPosteActual);
+        const coincideId = idPosteActual && dPosteId && String(dPosteId) === String(idPosteActual);
+        const coincideNombre = textoNapsDesdeBackend.includes(d.codigo || d.codigo_nap);
+        return coincideId || coincideNombre;
       });
+
+      napsAsociadasAlPoste = napsFiltradas.length > 0
+        ? napsFiltradas.map(n => n.codigo || n.codigo_nap)
+        : textoNapsDesdeBackend;
     }
 
-    let totalPuertos = dispFresca.puertos_totales ?? dispFresca.capacidad ?? 8;
+    const totalPuertos = Number(dispFresca.capacidad_puertos ?? dispFresca.puertos_totales ?? dispFresca.capacidad) || 8;
     let clientesEnNap = [];
     if (esNap) {
       const nombreNapActual = (dispFresca.codigo || dispFresca.codigo_nap || dispFresca.nombre || '').toLowerCase();
       clientesEnNap = dispositivos.filter(d => {
-        const dTipo = (d.tipo || '').toUpperCase();
+        if (clasificarTipoDispositivo(d) !== 'CLIENTE') return false;
         const dNapRef = (d.nap_asociada || d.codigo_nap || d.nombre_nap || '').toLowerCase();
-        return (dTipo.includes('CLIENTE') || d.nombre_completo || d.cliente_ref) && dNapRef === nombreNapActual;
+        return dNapRef === nombreNapActual;
       });
     }
 
     return (
       <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-        <div style={{ backgroundColor: '#f8fafc', padding: '14px 16px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
-          <span style={{ fontSize: '0.65rem', color: '#64748b', textTransform: 'uppercase', fontWeight: '700', display: 'block' }}>Dispositivo</span>
-          <h4 style={{ margin: '4px 0 0 0', fontSize: '1rem', color: '#0f172a', fontWeight: '800' }}>
-            {esCliente ? (dispFresca.nombre_completo || dispFresca.cliente_ref || identificador) : identificador}
-          </h4>
+        <div style={{ backgroundColor: '#f8fafc', padding: '14px 16px', borderRadius: '12px', border: '1px solid #e2e8f0', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+          <div>
+            <span style={{ fontSize: '0.65rem', color: '#64748b', textTransform: 'uppercase', fontWeight: '700', display: 'block' }}>
+              {esOnu ? 'Equipo ONU' : esNap ? 'Caja NAP' : esPoste ? 'Poste' : 'Cliente'}
+            </span>
+            <h4 style={{ margin: '4px 0 0 0', fontSize: '1rem', color: '#0f172a', fontWeight: '800' }}>
+              {esCliente ? (dispFresca.nombre_completo || dispFresca.cliente_ref || identificador) : identificador}
+            </h4>
+          </div>
+          <span style={{ backgroundColor: '#e0f2fe', color: '#0369a1', padding: '4px 10px', borderRadius: '6px', fontSize: '0.75rem', fontWeight: '700' }}>
+            {localidadFormateada}
+          </span>
         </div>
+
+        {esOnu && (
+          <div style={{ backgroundColor: '#f8fafc', padding: '14px 16px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
+            <span style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: '700', display: 'block' }}>TIPO DE INFRAESTRUCTURA</span>
+            <span style={{ fontSize: '0.88rem', color: '#0284c7', fontWeight: '800', display: 'block', marginTop: '3px' }}>
+              Terminal Óptica de Red (ONU / Fibra)
+            </span>
+          </div>
+        )}
 
         {esCliente && (
           <>
             <div style={{ backgroundColor: '#f8fafc', padding: '14px 16px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
               <span style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: '700', display: 'block' }}>CAJA NAP CONECTADA</span>
               <span style={{ fontSize: '0.9rem', color: '#0284c7', fontWeight: '800', display: 'block', marginTop: '3px' }}>
-                {dispFresca.nap_asociada || dispFresca.codigo_nap || dispFresca.nombre_nap || 'No especificada'}
+                {dispFresca.nap_asociada || dispFresca.codigo_nap || dispFresca.nombre_nap || 'Sin NAP asociada'}
               </span>
             </div>
 
             <div style={{ backgroundColor: '#f8fafc', padding: '14px 16px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
               <span style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: '700', display: 'block' }}>PUERTO ASIGNADO</span>
               <span style={{ fontSize: '0.9rem', color: '#0f172a', fontWeight: '800', display: 'block', marginTop: '3px' }}>
-                {dispFresca.puerto ? `Puerto -${dispFresca.puerto}` : 'No especificado'}
+                {dispFresca.puerto ? `Puerto #${dispFresca.puerto}` : 'No especificado'}
               </span>
             </div>
           </>
@@ -573,9 +633,9 @@ function MapaRed() {
             <span style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: '700', display: 'block' }}>CAJAS NAP ASOCIADAS EN ESTE POSTE</span>
             <div style={{ marginTop: '6px', display: 'flex', flexDirection: 'column', gap: '4px' }}>
               {napsAsociadasAlPoste.length > 0 ? (
-                napsAsociadasAlPoste.map((napItem, nIdx) => (
+                napsAsociadasAlPoste.map((codigoNapStr, nIdx) => (
                   <span key={nIdx} style={{ fontSize: '0.85rem', color: '#0284c7', fontWeight: '700' }}>
-                    • {napItem.codigo || napItem.codigo_nap || napItem.nombre || `NAP #${nIdx + 1}`}
+                    • {codigoNapStr}
                   </span>
                 ))
               ) : (
@@ -589,7 +649,7 @@ function MapaRed() {
 
         <div style={{ backgroundColor: '#f8fafc', padding: '14px 16px', borderRadius: '12px', border: '1px solid #e2e8f0' }}>
           <span style={{ fontSize: '0.65rem', color: '#64748b', fontWeight: '700', display: 'block' }}>ESTADO</span>
-          <span style={{ fontSize: '0.85rem', color: esEstatusActivo(estadoStr) ? '#16a34a' : '#dc2626', fontWeight: '700', display: 'block', marginTop: '3px' }}>
+          <span style={{ fontSize: '0.85rem', color: obtenerColorTextoEstatus(estadoStr), fontWeight: '700', display: 'block', marginTop: '3px' }}>
             {estadoStr}
           </span>
         </div>
@@ -642,9 +702,8 @@ function MapaRed() {
               const lng = parseFloat(disp.longitud ?? disp.lng);
               if (isNaN(lat) || isNaN(lng)) return null;
 
-              const cod = disp.codigo || disp.codigo_nap || disp.nombre_completo || `Elemento #${index}`;
-              const clienteNombre = disp.nombre_completo || disp.cliente_ref;
-              const keyId = `${disp.tipo || 'X'}-${disp.poste_id ?? disp.id_nap ?? disp.id_cliente ?? disp.id_onus ?? index}`;
+              const etiquetaTooltip = obtenerNombrePunto(disp) || `Elemento #${index}`;
+              const keyId = `${obtenerClaveUnicaDispositivo(disp)}-${index}`;
 
               return (
                 <Marker
@@ -657,7 +716,7 @@ function MapaRed() {
                 >
                   <Tooltip direction="top" offset={[0, -10]} opacity={0.95}>
                     <div style={{ fontSize: '0.8rem', fontWeight: 'bold' }}>
-                      <div>{clienteNombre ? clienteNombre : cod}</div>
+                      <div>{etiquetaTooltip}</div>
                     </div>
                   </Tooltip>
                 </Marker>
@@ -702,7 +761,7 @@ function MapaRed() {
             )}
           </MapContainer>
 
-          <div style={{ position: 'absolute', top: '16px', left: '16px', zIndex: 1000, width: '340px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
+          <div style={{ position: 'absolute', top: '16px', left: '16px', zIndex: 1000, width: '350px', display: 'flex', flexDirection: 'column', gap: '8px' }}>
             <div style={{ display: 'flex', gap: '8px' }}>
               <input
                 type="text"
@@ -746,22 +805,28 @@ function MapaRed() {
             </div>
 
             <div style={{ display: 'flex', gap: '6px', flexWrap: 'wrap' }}>
-              {['TODOS', 'POSTE', 'NAP', 'CLIENTE'].map((tipo) => (
+              {[
+                { id: 'TODOS', label: 'Todos' },
+                { id: 'POSTE', label: 'Poste' },
+                { id: 'NAP', label: 'Nap' },
+                { id: 'CLIENTE', label: 'Cliente' },
+                { id: 'ONU', label: 'Onu' }
+              ].map((item) => (
                 <button
-                  key={tipo}
-                  onClick={() => setFiltroTipo(tipo)}
+                  key={item.id}
+                  onClick={() => setFiltroTipo(item.id)}
                   style={{
                     padding: '6px 12px',
                     fontSize: '0.75rem',
                     fontWeight: '700',
                     borderRadius: '8px',
                     border: '1px solid #cbd5e1',
-                    backgroundColor: filtroTipo === tipo ? '#0284c7' : '#ffffff',
-                    color: filtroTipo === tipo ? '#ffffff' : '#334155',
+                    backgroundColor: filtroTipo === item.id ? '#0284c7' : '#ffffff',
+                    color: filtroTipo === item.id ? '#ffffff' : '#334155',
                     cursor: 'pointer'
                   }}
                 >
-                  {tipo.charAt(0) + tipo.slice(1).toLowerCase()}
+                  {item.label}
                 </button>
               ))}
             </div>
@@ -782,10 +847,9 @@ function MapaRed() {
                 }}
               >
                 {sugerencias.map((disp, idx) => {
-                  const cod = disp.codigo || disp.codigo_nap || disp.nombre || 'S/C';
-                  const clienteNombre = disp.nombre_completo || disp.cliente_ref;
-                  const siglaLocalidad = disp.siglas || disp.siglas_barrio || disp.localidad || disp.barrio || '';
-                  const keyId = `sug-${disp.tipo || 'X'}-${disp.poste_id ?? disp.id_nap ?? disp.id_cliente ?? idx}`;
+                  const nombreVisible = obtenerNombrePunto(disp);
+                  const siglaLocalidad = formatearLocalidad(disp.localidad || disp.siglas || disp.barrio);
+                  const keyId = `sug-${obtenerClaveUnicaDispositivo(disp)}-${idx}`;
 
                   return (
                     <li
@@ -797,13 +861,11 @@ function MapaRed() {
                     >
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                         <span style={{ fontSize: '0.88rem', fontWeight: '700', color: '#0f172a' }}>
-                          {clienteNombre ? clienteNombre : cod}
+                          {nombreVisible}
                         </span>
-                        {siglaLocalidad && (
-                          <span style={{ fontSize: '0.72rem', fontWeight: '600', backgroundColor: '#f1f5f9', color: '#475569', padding: '2px 6px', borderRadius: '4px' }}>
-                            {siglaLocalidad}
-                          </span>
-                        )}
+                        <span style={{ fontSize: '0.72rem', fontWeight: '700', backgroundColor: '#e0f2fe', color: '#0369a1', padding: '2px 6px', borderRadius: '4px' }}>
+                          {siglaLocalidad}
+                        </span>
                       </div>
                     </li>
                   );
@@ -874,7 +936,7 @@ function MapaRed() {
                         Dispositivo: {infoDistancia.origenNombre}
                       </span>
                       <span style={{ fontSize: '0.82rem', color: '#0f172a', fontWeight: '700' }}>
-                        Estatus: <span style={{ color: esEstatusActivo(infoDistancia.origenEstatus) ? '#16a34a' : '#dc2626' }}>{infoDistancia.origenEstatus}</span>
+                        Estatus: <span style={{ color: obtenerColorTextoEstatus(infoDistancia.origenEstatus) }}>{infoDistancia.origenEstatus}</span>
                       </span>
                     </div>
 
@@ -887,7 +949,7 @@ function MapaRed() {
                         Dispositivo: {infoDistancia.destinoNombre}
                       </span>
                       <span style={{ fontSize: '0.82rem', color: '#0f172a', fontWeight: '700' }}>
-                        Estatus: <span style={{ color: esEstatusActivo(infoDistancia.destinoEstatus) ? '#16a34a' : '#dc2626' }}>{infoDistancia.destinoEstatus}</span>
+                        Estatus: <span style={{ color: obtenerColorTextoEstatus(infoDistancia.destinoEstatus) }}>{infoDistancia.destinoEstatus}</span>
                       </span>
                     </div>
                   </div>
@@ -927,7 +989,7 @@ function MapaRed() {
                           }}
                           style={{
                             width: '100%',
-                            backgroundColor: '#0284c7', // Botón ver/ruta en azul cielo intuitivo
+                            backgroundColor: '#0284c7',
                             color: '#ffffff',
                             border: 'none',
                             padding: '12px',
@@ -947,12 +1009,13 @@ function MapaRed() {
                           onClick={() => {
                             const objetivo = dispositivoSeleccionado;
                             if (!objetivo) return;
-                            const idUnico = objetivo.id ?? objetivo.poste_id ?? objetivo.id_nap ?? objetivo.id_cliente ?? objetivo.id_onus;
-                            navigate(`/dispositivos?editar=${idUnico}`, { state: { editarId: idUnico, dispositivo: objetivo } });
+                            const rawId = objetivo.id ?? objetivo.poste_id ?? objetivo.id_nap ?? objetivo.id_cliente ?? objetivo.id_onus;
+                            const categoria = clasificarTipoDispositivo(objetivo);
+                            navigate(`/dispositivos?editar=${rawId}&tipo=${categoria}`, { state: { editarId: rawId, editarTipo: categoria, dispositivo: objetivo } });
                           }}
                           style={{
                             width: '100%',
-                            backgroundColor: '#d97706', // Botón EDITAR corregido a color ámbar vibrante (eliminando el negro anterior)
+                            backgroundColor: '#d97706',
                             color: '#ffffff',
                             border: 'none',
                             padding: '12px',
@@ -972,6 +1035,27 @@ function MapaRed() {
               </div>
             </div>
           </aside>
+        )}
+
+        {notificacion.visible && (
+          <div style={{
+            position: 'fixed',
+            bottom: '24px',
+            right: '24px',
+            backgroundColor: notificacion.tipo === 'error' ? '#dc2626' : '#16a34a',
+            color: '#ffffff',
+            padding: '12px 20px',
+            borderRadius: '8px',
+            boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.1)',
+            zIndex: 9999,
+            fontSize: '0.85rem',
+            fontWeight: '700',
+            display: 'flex',
+            alignItems: 'center',
+            gap: '8px'
+          }}>
+            <span>{notificacion.mensaje}</span>
+          </div>
         )}
       </div>
     </React.Fragment>
