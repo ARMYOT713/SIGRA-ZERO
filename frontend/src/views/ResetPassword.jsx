@@ -11,10 +11,16 @@ export default function ResetPassword() {
   const [confirmarPassword, setConfirmarPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-  const [status, setStatus] = useState({ type: '', msg: '' });
   const [cargando, setCargando] = useState(false);
+  const [notificacion, setNotificacion] = useState({ visible: false, mensaje: '', tipo: 'exito' });
 
-  // Funciones de validación
+  const mostrarToast = (mensaje, tipo = 'exito') => {
+    setNotificacion({ visible: true, mensaje, tipo });
+    setTimeout(() => {
+      setNotificacion(prev => ({ ...prev, visible: false }));
+    }, 4000);
+  };
+
   const tieneMayuscula = /[A-Z]/.test(nuevaPassword);
   const tieneMinuscula = /[a-z]/.test(nuevaPassword);
   const tieneEspecial = /[@$!%*?&#._#-]/.test(nuevaPassword);
@@ -22,36 +28,24 @@ export default function ResetPassword() {
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setStatus({ type: '', msg: '' });
 
     if (!nuevaPassword || !confirmarPassword) {
-      setStatus({ type: 'error', msg: 'Por favor completa todos los campos.' });
+      mostrarToast('Por favor completa todos los campos.', 'error');
       return;
     }
 
     if (nuevaPassword !== confirmarPassword) {
-      setStatus({ type: 'error', msg: 'Las contraseñas no coinciden.' });
+      mostrarToast('Las contraseñas no coinciden.', 'error');
       return;
     }
 
-    // Validaciones estrictas de seguridad
-    if (!tieneLargoMinimo) {
-      setStatus({ type: 'error', msg: 'La contraseña debe tener al menos 8 caracteres.' });
-      return;
-    }
-
-    if (!tieneMayuscula || !tieneMinuscula) {
-      setStatus({ type: 'error', msg: 'La contraseña debe incluir al menos una letra mayúscula y una minúscula.' });
-      return;
-    }
-
-    if (!tieneEspecial) {
-      setStatus({ type: 'error', msg: 'La contraseña debe contener al menos un carácter especial (@, $, !, %, *, ?, &, #, ., _).' });
+    if (!tieneLargoMinimo || !tieneMayuscula || !tieneMinuscula || !tieneEspecial) {
+      mostrarToast('Cumple con todos los requisitos de seguridad de la contraseña.', 'error');
       return;
     }
 
     if (!token) {
-      setStatus({ type: 'error', msg: 'Token de recuperación no válido o ausente en el enlace.' });
+      mostrarToast('Token de recuperación no válido o ausente en el enlace.', 'error');
       return;
     }
 
@@ -63,30 +57,25 @@ export default function ResetPassword() {
         body: JSON.stringify({ token, nuevaPassword }),
       });
 
-      const data = await response.json();
+      const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
         throw new Error(data.error || data.message || 'Ocurrió un error al restablecer la contraseña.');
       }
 
-      // Si el backend retorna token y datos de usuario, los guardamos para la sesión directa
       if (data.token && data.usuario) {
         localStorage.setItem('token', data.token);
         localStorage.setItem('usuario', JSON.stringify(data.usuario));
       }
 
-      setStatus({ 
-        type: 'success', 
-        msg: '¡Contraseña actualizada con éxito! Ingresando a tu panel...' 
-      });
+      mostrarToast('Contraseña actualizada con éxito.');
       
-      // Redirección directa al Dashboard después de 1.8 segundos sin pedir Login otra vez
       setTimeout(() => {
-        navigate('/');
-      }, 1800);
+        navigate('/login');
+      }, 1500);
 
     } catch (err) {
-      setStatus({ type: 'error', msg: err.message });
+      mostrarToast(err.message, 'error');
     } finally {
       setCargando(false);
     }
@@ -104,18 +93,11 @@ export default function ResetPassword() {
           <p>Restablecimiento de Credenciales de Acceso</p>
         </div>
 
-        {status.msg && (
-          <div className={`status-badge ${status.type}`}>
-            {status.type === 'success' ? '✓ ' : '✕ '}
-            {status.msg}
-          </div>
-        )}
-
         <form onSubmit={handleSubmit} className="login-form">
           <div className="form-group">
-            <label htmlFor="nuevaPassword">Nueva Contraseña</label>
+            <label htmlFor="nuevaPassword">Nueva Contraseña:</label>
             <div className="input-field">
-              <svg className="field-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2">
+              <svg className="field-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" strokeWidth="2">
                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
                 <path d="M7 11V7a5 5 0 0 1 10 0v4" />
               </svg>
@@ -135,12 +117,12 @@ export default function ResetPassword() {
                 tabIndex="-1"
               >
                 {showPassword ? (
-                  <svg width="18" height="18" fill="none" stroke="#9ca3af" strokeWidth="2" viewBox="0 0 24 24">
+                  <svg width="18" height="18" fill="none" strokeWidth="2" viewBox="0 0 24 24">
                     <path d="M17.94 17.94A10.07 10.07 0 0112 19c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" />
                     <line x1="1" y1="1" x2="23" y2="23" />
                   </svg>
                 ) : (
-                  <svg width="18" height="18" fill="none" stroke="#9ca3af" strokeWidth="2" viewBox="0 0 24 24">
+                  <svg width="18" height="18" fill="none" strokeWidth="2" viewBox="0 0 24 24">
                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
                     <circle cx="12" cy="12" r="3" />
                   </svg>
@@ -150,9 +132,9 @@ export default function ResetPassword() {
           </div>
 
           <div className="form-group">
-            <label htmlFor="confirmarPassword">Confirmar Nueva Contraseña</label>
+            <label htmlFor="confirmarPassword">Confirmar Nueva Contraseña:</label>
             <div className="input-field">
-              <svg className="field-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2">
+              <svg className="field-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" strokeWidth="2">
                 <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
                 <path d="M7 11V7a5 5 0 0 1 10 0v4" />
               </svg>
@@ -172,12 +154,12 @@ export default function ResetPassword() {
                 tabIndex="-1"
               >
                 {showConfirmPassword ? (
-                  <svg width="18" height="18" fill="none" stroke="#9ca3af" strokeWidth="2" viewBox="0 0 24 24">
+                  <svg width="18" height="18" fill="none" strokeWidth="2" viewBox="0 0 24 24">
                     <path d="M17.94 17.94A10.07 10.07 0 0112 19c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" />
                     <line x1="1" y1="1" x2="23" y2="23" />
                   </svg>
                 ) : (
-                  <svg width="18" height="18" fill="none" stroke="#9ca3af" strokeWidth="2" viewBox="0 0 24 24">
+                  <svg width="18" height="18" fill="none" strokeWidth="2" viewBox="0 0 24 24">
                     <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
                     <circle cx="12" cy="12" r="3" />
                   </svg>
@@ -186,7 +168,6 @@ export default function ResetPassword() {
             </div>
           </div>
 
-          {/* Sugerencias/Requisitos visuales dinámicos de contraseña */}
           <div className="password-requirements">
             <p className={tieneLargoMinimo ? 'valid' : 'invalid'}>
               {tieneLargoMinimo ? '✓' : '○'} Mínimo 8 caracteres
@@ -199,11 +180,42 @@ export default function ResetPassword() {
             </p>
           </div>
 
-          <button type="submit" disabled={cargando} className="submit-btn">
+          <button type="submit" disabled={cargando} className="submit-btn submit-btn-green">
             {cargando ? 'ACTUALIZANDO...' : 'ACTUALIZAR CONTRASEÑA'}
+          </button>
+
+          <button
+            type="button"
+            className="forgot-password-link"
+            style={{ textAlign: 'center', width: '100%', marginTop: '6px' }}
+            onClick={() => navigate('/login')}
+          >
+            ← Volver al inicio de sesión
           </button>
         </form>
       </div>
+
+      {/* TOAST FLOTANTE ESTANDARIZADO */}
+      {notificacion.visible && (
+        <div style={{
+          position: 'fixed',
+          bottom: '24px',
+          right: '24px',
+          backgroundColor: notificacion.tipo === 'error' ? '#dc2626' : '#16a34a',
+          color: '#ffffff',
+          padding: '12px 20px',
+          borderRadius: '8px',
+          boxShadow: '0 10px 15px -3px rgba(0, 0, 0, 0.15)',
+          zIndex: 9999,
+          fontSize: '0.85rem',
+          fontWeight: '700',
+          display: 'flex',
+          alignItems: 'center',
+          gap: '8px'
+        }}>
+          <span>{notificacion.mensaje}</span>
+        </div>
+      )}
     </div>
   );
 }
