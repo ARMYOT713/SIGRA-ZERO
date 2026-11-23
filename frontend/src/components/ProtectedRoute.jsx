@@ -2,8 +2,8 @@ import React, { useEffect, useState } from "react";
 import { Navigate, useLocation } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
-// Verifica que el JWT tenga estructura válida y no haya expirado
-function esTokenValido(token) {
+// Verifica estructura y expiración del JWT
+export function esTokenValido(token) {
   if (!token || typeof token !== "string") return false;
   const partes = token.split(".");
   if (partes.length !== 3) return false;
@@ -16,7 +16,7 @@ function esTokenValido(token) {
     if (payload.exp) {
       const ahoraEnSegundos = Math.floor(Date.now() / 1000);
       if (ahoraEnSegundos >= payload.exp) {
-        return false; // Token expirado
+        return false;
       }
     }
     return payload;
@@ -28,22 +28,45 @@ function esTokenValido(token) {
 function ProtectedRoute({ children, rolesPermitidos }) {
   const { usuario, cargando, logout } = useAuth();
   const location = useLocation();
-  const [verificacionTick, setVerificacionTick] = useState(0);
+  const [, setTick] = useState(0);
 
-  // Re-evaluar sesión cada vez que el usuario use las flechas Atrás/Adelante o regrese de caché
+  const token = localStorage.getItem("token");
+  const usuarioStorageRaw = localStorage.getItem("usuario");
+  const payloadToken = esTokenValido(token);
+  const sesionInvalida = !payloadToken || (!usuario && !usuarioStorageRaw);
+
+  // Limpieza segura de sesión inválida (fuera del render)
   useEffect(() => {
-    const forzarRevalidacion = () => {
-      setVerificacionTick((prev) => prev + 1);
+    if (!cargando && sesionInvalida) {
+      localStorage.removeItem("token");
+      localStorage.removeItem("usuario");
+      if (typeof logout === "function") {
+        try { logout(); } catch (e) {}
+      }
+    }
+  }, [cargando, sesionInvalida, logout]);
+
+  // Protección contra bfcache (flechas Atrás/Adelante) y cierre en otra pestaña
+  useEffect(() => {
+    const verificarSesionEnNavegacion = (event) => {
+      const tokenActual = localStorage.getItem("token");
+      if (!esTokenValido(tokenActual)) {
+        if (event?.type === "pageshow" && event.persisted) {
+          window.location.replace("/login");
+          return;
+        }
+        setTick((prev) => prev + 1);
+      }
     };
 
-    window.addEventListener("popstate", forzarRevalidacion);
-    window.addEventListener("pageshow", forzarRevalidacion);
-    window.addEventListener("storage", forzarRevalidacion);
+    window.addEventListener("popstate", verificarSesionEnNavegacion);
+    window.addEventListener("pageshow", verificarSesionEnNavegacion);
+    window.addEventListener("storage", verificarSesionEnNavegacion);
 
     return () => {
-      window.removeEventListener("popstate", forzarRevalidacion);
-      window.removeEventListener("pageshow", forzarRevalidacion);
-      window.removeEventListener("storage", forzarRevalidacion);
+      window.removeEventListener("popstate", verificarSesionEnNavegacion);
+      window.removeEventListener("pageshow", verificarSesionEnNavegacion);
+      window.removeEventListener("storage", verificarSesionEnNavegacion);
     };
   }, [location.pathname]);
 
@@ -55,17 +78,7 @@ function ProtectedRoute({ children, rolesPermitidos }) {
     );
   }
 
-  const token = localStorage.getItem("token");
-  const usuarioStorageRaw = localStorage.getItem("usuario");
-  const payloadToken = esTokenValido(token);
-
-  // Si no hay token, está corrupto, expiró o no hay usuario, limpiar todo y expulsar al login
-  if (!payloadToken || (!usuario && !usuarioStorageRaw)) {
-    localStorage.removeItem("token");
-    localStorage.removeItem("usuario");
-    if (typeof logout === "function") {
-      try { logout(); } catch (e) {}
-    }
+  if (sesionInvalida) {
     return <Navigate to="/login" replace />;
   }
 
@@ -73,15 +86,11 @@ function ProtectedRoute({ children, rolesPermitidos }) {
   try {
     usuarioParseado = usuario || JSON.parse(usuarioStorageRaw || "{}");
   } catch (e) {
-    localStorage.removeItem("token");
-    localStorage.removeItem("usuario");
     return <Navigate to="/login" replace />;
   }
 
-  // Tomamos el rol directamente del JWT firmado por el backend para evitar manipulación en localStorage
   const rolActual = String(payloadToken.rol || usuarioParseado?.rol || "").toUpperCase();
 
-  // Si el usuario intenta escribir una URL de un módulo para el que no tiene rol, redirigir
   if (
     rolesPermitidos &&
     !rolesPermitidos.some((r) => String(r).toUpperCase() === rolActual)

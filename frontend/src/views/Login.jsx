@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Navigate } from 'react-router-dom';
+import { esTokenValido } from '../components/ProtectedRoute';
 import { useAuth } from '../context/AuthContext';
 import './Login.css';
 
@@ -27,8 +28,11 @@ export const Login = () => {
   const [creandoAdmin, setCreandoAdmin] = useState(false);
 
   const timerRef = useRef(null);
-  const { login, logout } = useAuth();
+  const { login } = useAuth();
   const navigate = useNavigate();
+
+  const tokenActivo = localStorage.getItem('token');
+  const tieneSesionActiva = Boolean(esTokenValido(tokenActivo));
 
   // Función que muestra el estado arriba del formulario y borra los errores a los 5 segundos
   const mostrarEstadoSuperior = (type, msg, autoHideMs = 5000) => {
@@ -51,13 +55,7 @@ export const Login = () => {
   };
 
   useEffect(() => {
-    // Candado de seguridad: si el usuario regresa a /login con las flechas del navegador,
-    // se destruye cualquier sesión activa para impedir que regrese con la flecha "Adelante"
-    localStorage.removeItem('token');
-    localStorage.removeItem('usuario');
-    if (typeof logout === 'function') {
-      try { logout(); } catch (e) {}
-    }
+    if (tieneSesionActiva) return;
 
     const verificarEstadoInicial = async () => {
       try {
@@ -75,7 +73,7 @@ export const Login = () => {
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
     };
-  }, []);
+  }, [tieneSesionActiva]);
 
   const handleSubmit = async (e) => {
     if (e) {
@@ -177,6 +175,11 @@ export const Login = () => {
       setCreandoAdmin(false);
     }
   };
+
+  // Si ya hay sesión activa y el usuario intenta volver a /login con la flecha Atrás, lo mantiene dentro
+  if (tieneSesionActiva && !loading) {
+    return <Navigate to="/" replace />;
+  }
 
   return (
     <div className="classic-login-wrapper">
@@ -477,11 +480,10 @@ export const Login = () => {
 
       </div>
 
-    <footer className="login-footer">
+      <footer className="login-footer">
         © 2026 <strong>SIGRA - WinfoRed</strong>. Todos los derechos reservados. · Desarrollado por{" "}
         <strong>Carolina Garcia</strong>.
       </footer>
-
     </div>
   );
 };

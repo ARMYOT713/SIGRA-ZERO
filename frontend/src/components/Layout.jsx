@@ -1,8 +1,10 @@
 import React, { useState } from "react";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
 function Layout() {
   const navigate = useNavigate();
+  const { logout } = useAuth();
   const [modalCerrarSesion, setModalCerrarSesion] = useState(false);
 
   // Obtenemos los datos del usuario logueado desde localStorage
@@ -28,6 +30,9 @@ function Layout() {
   const confirmarCerrarSesion = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("usuario");
+    if (typeof logout === "function") {
+      try { logout(); } catch (e) {}
+    }
     setModalCerrarSesion(false);
     navigate("/login", { replace: true });
   };
@@ -197,7 +202,7 @@ function Layout() {
             <Outlet />
           </main>
 
-        {/* FOOTER GENERAL */}
+          {/* FOOTER GENERAL */}
           <footer
             style={{
               flexShrink: 0,
