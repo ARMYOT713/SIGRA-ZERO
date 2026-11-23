@@ -520,6 +520,10 @@ function Dispositivos() {
     else if (estadoBD.includes('MANT')) estatusNormalizado = 'MANTENIMIENTO';
     else if (estadoBD.includes('DESACT') || estadoBD.includes('INACT')) estatusNormalizado = 'DESACTIVADO';
 
+    const contactoInicial = item.tipo === 'Clientes'
+      ? String(item.no_serie || item.contacto || '').replace(/\D/g, '').slice(0, 10)
+      : (item.no_serie || item.contacto || '');
+
     setForm({
       tipo: item.tipo,
       codigo: item.codigo_nap || item.codigo || item.cliente_ref || '',
@@ -529,7 +533,7 @@ function Dispositivos() {
       clienteAsociado: item.clienteAsociado || '',
       napAsociada: item.napAsociada || item.id_nap || '',
       puertoAsignado: item.puertoAsignado !== null && item.puertoAsignado !== undefined ? String(item.puertoAsignado) : '',
-      serie: item.no_serie || item.contacto || '',
+      serie: contactoInicial,
       cliente: item.cliente_ref || '',
       nombreCliente: item.nombre_completo || '',
       fecha_instalacion: item.fecha_instalacion ? item.fecha_instalacion.split('T')[0] : new Date().toISOString().split('T')[0],
@@ -586,7 +590,7 @@ function Dispositivos() {
     }
   };
 
-   const handleGuardar = async (e) => {
+  const handleGuardar = async (e) => {
     e.preventDefault();
     let endpoint = 'clientes';
     if (form.tipo === 'Caja NAP') endpoint = 'naps';
@@ -604,65 +608,72 @@ function Dispositivos() {
     let datosAEnviar = {};
 
     if (form.tipo === 'Clientes') {
+      // Validación estricta de teléfono a 10 dígitos
+      const telefonoLimpio = String(form.serie || '').replace(/\D/g, '');
+      if (telefonoLimpio.length !== 10) {
+        mostrarAlertaFlotante("El número de contacto debe contener exactamente 10 dígitos.", "error");
+        return;
+      }
+
       const napSeleccionadaObj = napsDisponiblesBD.find(n => String(n.codigo || '').toLowerCase() === String(form.napAsociada || '').toLowerCase() || String(n.realId) === String(form.napAsociada));
       const idNapFinal = napSeleccionadaObj ? Number(napSeleccionadaObj.realId) : null;
 
       datosAEnviar = {
-      cliente_ref: form.codigo,
-      nombre_completo: form.nombreCliente || form.codigo,
-      contacto: form.serie || '', 
-      localidad: localidadFinal,
-      estatus: form.estado === 'ACTIVO',
-      estado: form.estado,
-      id_nap: idNapFinal,
-      puerto_asignado: form.puertoAsignado ? Number(form.puertoAsignado) : null,
-      fecha_instalacion: form.fecha_instalacion ? new Date(form.fecha_instalacion).toISOString() : new Date().toISOString(),
-      latitud: form.latitud ? parseFloat(form.latitud) : null,
-      longitud: form.longitud ? parseFloat(form.longitud) : null
+        cliente_ref: form.codigo,
+        nombre_completo: form.nombreCliente || form.codigo,
+        contacto: telefonoLimpio,
+        localidad: localidadFinal,
+        estatus: form.estado === 'ACTIVO',
+        estado: form.estado,
+        id_nap: idNapFinal,
+        puerto_asignado: form.puertoAsignado ? Number(form.puertoAsignado) : null,
+        fecha_instalacion: form.fecha_instalacion ? new Date(form.fecha_instalacion).toISOString() : new Date().toISOString(),
+        latitud: form.latitud ? parseFloat(form.latitud) : null,
+        longitud: form.longitud ? parseFloat(form.longitud) : null
       };
     
     } else if (form.tipo === 'ONU') {
-     datosAEnviar = {
-      cliente_ref: form.codigo,
-      nombre_completo: form.nombreCliente || form.codigo,
-      contacto: form.onuSerie || '', 
-      no_serie: form.onuSerie || '',
-      modelo: form.onuModelo || '',
-      localidad: localidadFinal, 
-      estatus: form.estado === 'ACTIVO',
-      estado: form.estado,
-      tipo: 'ONU',
-      es_onu: true,
-      fecha_instalacion: form.fecha_instalacion ? new Date(form.fecha_instalacion).toISOString() : new Date().toISOString(),
-      latitud: form.latitud ? parseFloat(form.latitud) : null,
-      longitud: form.longitud ? parseFloat(form.longitud) : null
-    };
+      datosAEnviar = {
+        cliente_ref: form.codigo,
+        nombre_completo: form.nombreCliente || form.codigo,
+        contacto: form.onuSerie || '', 
+        no_serie: form.onuSerie || '',
+        modelo: form.onuModelo || '',
+        localidad: localidadFinal, 
+        estatus: form.estado === 'ACTIVO',
+        estado: form.estado,
+        tipo: 'ONU',
+        es_onu: true,
+        fecha_instalacion: form.fecha_instalacion ? new Date(form.fecha_instalacion).toISOString() : new Date().toISOString(),
+        latitud: form.latitud ? parseFloat(form.latitud) : null,
+        longitud: form.longitud ? parseFloat(form.longitud) : null
+      };
 
     } else if (form.tipo === 'Caja NAP') {
       const posteSeleccionadoObj = postesDisponiblesBD.find(p => String(p.codigo || '').toLowerCase() === String(form.posteAsociado || '').toLowerCase() || String(p.realId) === String(form.poste_id));
       const idPosteFinal = posteSeleccionadoObj ? Number(posteSeleccionadoObj.realId) : null;
 
-        datosAEnviar = {
-         poste_id: idPosteFinal,
-         codigo_nap: form.codigo,
-         localidad: localidadFinal,
-         no_serie: form.serie || null,
-         estado: form.estado,
-         latitud: form.latitud ? parseFloat(form.latitud) : null,
-         longitud: form.longitud ? parseFloat(form.longitud) : null,
-         capacidad_puertos: form.capacidad_puertos ? Number(form.capacidad_puertos) : 8,
-         fecha_instalacion: form.fecha_instalacion ? new Date(form.fecha_instalacion).toISOString() : new Date().toISOString()
-        };
+      datosAEnviar = {
+        poste_id: idPosteFinal,
+        codigo_nap: form.codigo,
+        localidad: localidadFinal,
+        no_serie: form.serie || null,
+        estado: form.estado,
+        latitud: form.latitud ? parseFloat(form.latitud) : null,
+        longitud: form.longitud ? parseFloat(form.longitud) : null,
+        capacidad_puertos: form.capacidad_puertos ? Number(form.capacidad_puertos) : 8,
+        fecha_instalacion: form.fecha_instalacion ? new Date(form.fecha_instalacion).toISOString() : new Date().toISOString()
+      };
     } else {
       datosAEnviar = {
-      codigo: form.codigo,
-      localidad: localidadFinal,
-      estado: form.estado,
-      latitud: form.latitud ? parseFloat(form.latitud) : null,
-      longitud: form.longitud ? parseFloat(form.longitud) : null,
-      fecha_instalacion: form.fecha_instalacion ? new Date(form.fecha_instalacion).toISOString() : new Date().toISOString(),
-      napsAsociadas: napsSeleccionadasPosteForm.map(n => n.realId)
-     };
+        codigo: form.codigo,
+        localidad: localidadFinal,
+        estado: form.estado,
+        latitud: form.latitud ? parseFloat(form.latitud) : null,
+        longitud: form.longitud ? parseFloat(form.longitud) : null,
+        fecha_instalacion: form.fecha_instalacion ? new Date(form.fecha_instalacion).toISOString() : new Date().toISOString(),
+        napsAsociadas: napsSeleccionadasPosteForm.map(n => n.realId)
+      };
     }
 
     try {
@@ -883,7 +894,7 @@ function Dispositivos() {
         <table style={{ width: '100%', borderCollapse: 'collapse', color: '#1e293b', fontSize: '0.85rem', textAlign: 'left' }}>
           <thead>
             <tr style={{ borderBottom: '1px solid #e2e8f0', backgroundColor: '#f8fafc', color: '#64748b', fontSize: '0.78rem', textTransform: 'uppercase' }}>
-              <th style={{ padding: '12px 16px' }}>ID del Dispositivo</th>
+              <th style={{ padding: '12px 16px' }}>ID / Nombre del Dispositivo</th>
               <th style={{ padding: '12px 16px' }}>Localidad / Barrio</th>
               <th style={{ padding: '12px 16px' }}>Estado</th>
               <th style={{ padding: '12px 16px', textAlign: 'right' }}>Acciones</th>
@@ -1094,10 +1105,13 @@ function Dispositivos() {
                   </select>
                 </div>
                 <div>
-                  <label style={{ fontSize: '0.75rem', color: '#64748b', display: 'block', marginBottom: '4px' }}>ID del Dispositivo:</label>
+                  <label style={{ fontSize: '0.75rem', color: '#64748b', display: 'block', marginBottom: '4px' }}>
+                    ID del Dispositivo / Nombre del Dispositivo:
+                  </label>
                   <input 
                     type="text" 
                     required
+                    placeholder="Ej. CLI-01, NAP-01, POSTE-01..."
                     value={form.codigo}
                     onChange={(e) => setForm({...form, codigo: e.target.value})}
                     style={{ width: '100%', padding: '9px', borderRadius: '6px', border: '1px solid #cbd5e1', boxSizing: 'border-box' }}
@@ -1160,11 +1174,23 @@ function Dispositivos() {
                 <>
                   <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '14px' }}>
                     <div>
-                      <label style={{ fontSize: '0.75rem', color: '#64748b', display: 'block', marginBottom: '4px' }}>Contacto:</label>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                        <label style={{ fontSize: '0.75rem', color: '#64748b' }}>Contacto (Teléfono):</label>
+                        <span style={{ fontSize: '0.72rem', fontWeight: '600', color: (form.serie || '').replace(/\D/g, '').length === 10 ? '#16a34a' : '#64748b' }}>
+                          {(form.serie || '').replace(/\D/g, '').length}/10 dígitos
+                        </span>
+                      </div>
                       <input 
-                        type="text" 
+                        type="tel"
+                        inputMode="numeric"
+                        maxLength={10}
+                        required
+                        placeholder="Ej. 7121234567"
                         value={form.serie}
-                        onChange={(e) => setForm({...form, serie: e.target.value})}
+                        onChange={(e) => {
+                          const soloDigitos = e.target.value.replace(/\D/g, '').slice(0, 10);
+                          setForm({ ...form, serie: soloDigitos });
+                        }}
                         style={{ width: '100%', padding: '9px', borderRadius: '6px', border: '1px solid #cbd5e1', boxSizing: 'border-box' }}
                       />
                     </div>
