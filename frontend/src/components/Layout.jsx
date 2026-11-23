@@ -1,8 +1,9 @@
-import React from "react";
+import React, { useState } from "react";
 import { Outlet, NavLink, useNavigate } from "react-router-dom";
 
 function Layout() {
   const navigate = useNavigate();
+  const [modalCerrarSesion, setModalCerrarSesion] = useState(false);
 
   // Obtenemos los datos del usuario logueado desde localStorage
   const usuarioGuardado = JSON.parse(localStorage.getItem("usuario") || "{}");
@@ -24,10 +25,11 @@ function Layout() {
       .replace(/\b\w/g, (l) => l.toUpperCase());
   };
 
-  const handleCerrarSesion = () => {
+  const confirmarCerrarSesion = () => {
     localStorage.removeItem("token");
     localStorage.removeItem("usuario");
-    navigate("/login");
+    setModalCerrarSesion(false);
+    navigate("/login", { replace: true });
   };
 
   // Definimos las opciones del menú de forma dinámica según el rol:
@@ -66,6 +68,7 @@ function Layout() {
           color: "#182130",
           padding: "0 28px",
           height: "65px",
+          flexShrink: 0,
           borderBottom: "1px solid #63666b",
           boxShadow: "0 1px 3px rgba(0,0,0,0.04)",
           zIndex: 10,
@@ -107,12 +110,12 @@ function Layout() {
               {usuarioNombre}
             </span>
             <span style={{ color: '#10b981', fontWeight: "700", marginLeft: "4px" }}>
-              {formatearRolEstetico (rolUsuario)}
+              {formatearRolEstetico(rolUsuario)}
             </span>
           </div>
 
           <button
-            onClick={handleCerrarSesion}
+            onClick={() => setModalCerrarSesion(true)}
             style={{
               backgroundColor: "#ef4444",
               color: "#ffffff",
@@ -139,6 +142,7 @@ function Layout() {
         <aside
           style={{
             width: "210px",
+            flexShrink: 0,
             backgroundColor: "#05070a",
             padding: "20px 0",
             display: "flex",
@@ -170,18 +174,118 @@ function Layout() {
           ))}
         </aside>
 
-        {/* CONTENEDOR VISTA PRINCIPAL (CON SCROLL VERTICAL HABILITADO) */}
-        <main style={{ 
-          flex: 1, 
-          backgroundColor: "#f8fafc", 
-          overflowY: "auto",      
-          overflowX: "hidden",    
-          position: "relative",
-          height: "100%"
-        }}>
-          <Outlet />
-        </main>
+        {/* COLUMNA DERECHA: VISTA PRINCIPAL + FOOTER GLOBAL */}
+        <div
+          style={{
+            display: "flex",
+            flexDirection: "column",
+            flex: 1,
+            overflow: "hidden",
+            height: "100%",
+          }}
+        >
+          {/* CONTENEDOR VISTA PRINCIPAL */}
+          <main
+            style={{
+              flex: 1,
+              backgroundColor: "#f8fafc",
+              overflowY: "auto",
+              overflowX: "hidden",
+              position: "relative",
+            }}
+          >
+            <Outlet />
+          </main>
+
+          {/* FOOTER GENERAL */}
+          <footer
+            style={{
+              flexShrink: 0,
+              backgroundColor: "#ffffff",
+              borderTop: "1px solid #e2e8f0",
+              padding: "8px 24px",
+              textAlign: "center",
+              fontSize: "0.74rem",
+              color: "#64748b",
+            }}
+          >
+            © 2026 <strong>SIGRA - WinfoRed</strong>. Todos los derechos reservados. | Desarrollado por{" "}
+            <strong> Carolina Garcia</strong>.
+          </footer>
+        </div>
       </div>
+
+      {/* MODAL DE CONFIRMACIÓN PARA CERRAR SESIÓN */}
+      {modalCerrarSesion && (
+        <div
+          style={{
+            position: "fixed",
+            top: 0,
+            left: 0,
+            right: 0,
+            bottom: 0,
+            backgroundColor: "rgba(0, 0, 0, 0.5)",
+            display: "flex",
+            justifyContent: "center",
+            alignItems: "center",
+            zIndex: 5000,
+          }}
+        >
+          <div
+            style={{
+              backgroundColor: "#ffffff",
+              padding: "24px 28px",
+              borderRadius: "10px",
+              width: "390px",
+              maxWidth: "90%",
+              textAlign: "center",
+              boxShadow: "0 10px 25px rgba(0, 0, 0, 0.15)",
+              border: "1px solid #e2e8f0",
+            }}
+          >
+            <h3 style={{ margin: "0 0 10px 0", fontSize: "1.08rem", color: "#0f172a" }}>
+              ¿Cerrar sesión?
+            </h3>
+            <p style={{ fontSize: "0.85rem", color: "#475569", marginBottom: "22px", lineHeight: 1.5 }}>
+              ¿Estás segura de que deseas salir de <strong>SIGRA</strong>? Tendrás que ingresar tus credenciales nuevamente para acceder.
+            </p>
+            <div style={{ display: "flex", justifyContent: "center", gap: "10px" }}>
+              <button
+                type="button"
+                onClick={() => setModalCerrarSesion(false)}
+                style={{
+                  backgroundColor: "#e2e8f0",
+                  color: "#334155",
+                  border: "none",
+                  padding: "9px 18px",
+                  borderRadius: "6px",
+                  fontSize: "0.82rem",
+                  fontWeight: "600",
+                  cursor: "pointer",
+                }}
+              >
+                Cancelar
+              </button>
+              <button
+                type="button"
+                onClick={confirmarCerrarSesion}
+                style={{
+                  backgroundColor: "#dc2626",
+                  color: "#ffffff",
+                  border: "none",
+                  padding: "9px 18px",
+                  borderRadius: "6px",
+                  fontSize: "0.82rem",
+                  fontWeight: "700",
+                  cursor: "pointer",
+                }}
+              >
+                Sí, Cerrar Sesión
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
