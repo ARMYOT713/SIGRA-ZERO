@@ -79,7 +79,7 @@ function Usuarios() {
       correo: item.correo || '',
       rol: item.rol,
       password: '',
-      telefono: item.telefono || ''
+      telefono: (item.telefono || '').replace(/\D/g, '').slice(0, 10)
     });
     setModalAbierto(true);
   };
@@ -113,9 +113,27 @@ function Usuarios() {
       return;
     }
 
+    // Validación estricta de correo electrónico (con @ y dominio)
+    const correoLimpio = form.correo.trim().toLowerCase();
+    const regexCorreo = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+    if (!correoLimpio || !regexCorreo.test(correoLimpio)) {
+      mostrarAlertaFlotante("Ingresa un correo electrónico válido (ejemplo: usuario@dominio.com).", "error");
+      return;
+    }
+
+    // Validación estricta de teléfono (exactamente 10 dígitos numéricos)
+    const telefonoLimpio = form.telefono.replace(/\D/g, '');
+    if (telefonoLimpio.length !== 10) {
+      mostrarAlertaFlotante("El número telefónico debe contener exactamente 10 dígitos.", "error");
+      return;
+    }
+
     const payload = {
       ...form,
-      id_usuario: idNum
+      id_usuario: idNum,
+      nombre_completo: form.nombre_completo.trim(),
+      correo: correoLimpio,
+      telefono: telefonoLimpio
     };
 
     try {
@@ -332,7 +350,9 @@ function Usuarios() {
               <div>
                 <label style={{ fontSize: '0.75rem', color: '#64748b', display: 'block', marginBottom: '4px', fontWeight: '600' }}>Correo Electrónico:</label>
                 <input 
-                  type="email" 
+                  type="email"
+                  required
+                  placeholder="ejemplo@dominio.com"
                   value={form.correo}
                   onChange={(e) => setForm({...form, correo: e.target.value})}
                   style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.85rem', boxSizing: 'border-box', outline: 'none' }}
@@ -388,11 +408,23 @@ function Usuarios() {
               </div>
 
               <div>
-                <label style={{ fontSize: '0.75rem', color: '#64748b', display: 'block', marginBottom: '4px', fontWeight: '600' }}>Teléfono:</label>
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '4px' }}>
+                  <label style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: '600' }}>Teléfono:</label>
+                  <span style={{ fontSize: '0.72rem', fontWeight: '600', color: form.telefono.length === 10 ? '#16a34a' : '#64748b' }}>
+                    {form.telefono.length}/10 dígitos
+                  </span>
+                </div>
                 <input 
-                  type="text" 
+                  type="tel"
+                  inputMode="numeric"
+                  maxLength={10}
+                  required
+                  placeholder="Ej. 7121234567"
                   value={form.telefono}
-                  onChange={(e) => setForm({...form, telefono: e.target.value})}
+                  onChange={(e) => {
+                    const soloDigitos = e.target.value.replace(/\D/g, '').slice(0, 10);
+                    setForm({ ...form, telefono: soloDigitos });
+                  }}
                   style={{ width: '100%', padding: '9px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', color: '#1e293b', fontSize: '0.85rem', boxSizing: 'border-box', outline: 'none' }}
                 />
               </div>
