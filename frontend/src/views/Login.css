@@ -2,20 +2,22 @@
 
 .classic-login-wrapper {
   display: flex;
+  flex-direction: column;
   align-items: center;
   justify-content: center;
   width: 100vw;
-  height: 100vh;
+  min-height: 100vh;
   background: #f8fafc !important;
   font-family: 'Poppins', 'Segoe UI', sans-serif;
-  overflow: hidden;
+  overflow-y: auto;
   box-sizing: border-box;
-  padding: 16px;
+  padding: 24px 16px 16px 16px;
 }
 
 .login-card {
   width: 100%;
   max-width: 420px;
+  margin: auto 0;
   background: #ffffff;
   border: 1px solid #e2e8f0;
   border-radius: 16px;
@@ -288,4 +290,14 @@
 
 .password-requirements p.invalid {
   color: #94a3b8;
+}
+
+.login-footer {
+  width: 100%;
+  text-align: center;
+  font-size: 0.68rem;
+  color: #94a3b8;
+  letter-spacing: 0.2px;
+  padding-top: 12px;
+  margin-top: 8px;
 }

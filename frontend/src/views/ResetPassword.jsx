@@ -231,6 +231,12 @@ export default function ResetPassword() {
           </button>
         </form>
       </div>
+     
+     <footer className="login-footer">
+        © 2026 <strong>SIGRA - WinfoRed</strong>. Todos los derechos reservados. · Desarrollado por{" "}
+        <strong>Carolina Garcia</strong>.
+      </footer>
+      
     </div>
   );
 }

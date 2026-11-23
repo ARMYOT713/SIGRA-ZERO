@@ -197,20 +197,20 @@ function Layout() {
             <Outlet />
           </main>
 
-          {/* FOOTER GENERAL */}
+        {/* FOOTER GENERAL */}
           <footer
             style={{
               flexShrink: 0,
-              backgroundColor: "#ffffff",
-              borderTop: "1px solid #e2e8f0",
-              padding: "8px 24px",
+              backgroundColor: "#f8fafc",
+              padding: "6px 16px",
               textAlign: "center",
-              fontSize: "0.74rem",
-              color: "#64748b",
+              fontSize: "0.68rem",
+              color: "#94a3b8",
+              letterSpacing: "0.2px",
             }}
           >
-            © 2026 <strong>SIGRA - WinfoRed</strong>. Todos los derechos reservados. | Desarrollado por{" "}
-            <strong> Carolina Garcia</strong>.
+            © 2026 <strong>SIGRA - WinfoRed</strong>. Todos los derechos reservados. · Desarrollado por{" "}
+            <strong>Carolina Garcia</strong>.
           </footer>
         </div>
       </div>
