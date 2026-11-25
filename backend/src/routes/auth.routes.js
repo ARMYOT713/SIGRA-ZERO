@@ -6,6 +6,7 @@ const {
   login,
   registrar,
   forgotPassword,
+  verifyResetToken,
   resetPassword
 } = require("../controllers/auth.controller");
 const { verificarToken, autorizarRoles } = require("../middlewares/auth.middleware");
@@ -18,6 +19,7 @@ router.post("/setup-admin", setupAdmin);
 router.post("/login", login);
 router.post("/registrar", verificarToken, autorizarRoles("ADMINISTRADOR"), registrar);
 router.post("/forgot-password", forgotPassword);
+router.get("/verify-reset-token", verifyResetToken);
 router.post("/reset-password", resetPassword);
 
 module.exports = router;

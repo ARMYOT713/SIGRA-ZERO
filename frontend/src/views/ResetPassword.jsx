@@ -2,24 +2,6 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import './Login.css';
 
-// Intenta leer la fecha de expiración (exp) si el token de recuperación es un JWT
-function obtenerExpiracionTokenMs(token) {
-  if (!token || typeof token !== 'string') return null;
-  const partes = token.split('.');
-  if (partes.length !== 3) return null;
-
-  try {
-    const payloadBase64 = partes[1].replace(/-/g, '+').replace(/_/g, '/');
-    const payload = JSON.parse(window.atob(payloadBase64));
-    if (payload && typeof payload.exp === 'number') {
-      return payload.exp * 1000;
-    }
-    return null;
-  } catch (e) {
-    return null;
-  }
-}
-
 export default function ResetPassword() {
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token');
@@ -31,6 +13,7 @@ export default function ResetPassword() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [status, setStatus] = useState({ type: '', msg: '' });
   const [cargando, setCargando] = useState(false);
+  const [verificandoEnlace, setVerificandoEnlace] = useState(true);
   const [enlaceExpirado, setEnlaceExpirado] = useState(false);
 
   const timerRef = useRef(null);
@@ -60,27 +43,49 @@ export default function ResetPassword() {
   };
 
   useEffect(() => {
-    // 1. Si no viene token en la URL, marcar como expirado / inválido de inmediato
-    if (!token) {
-      setEnlaceExpirado(true);
-      return;
-    }
+    let activo = true;
 
-    // 2. Si el token es un JWT con exp, validar ahora y programar cambio automático al vencer
-    const expMs = obtenerExpiracionTokenMs(token);
-    if (expMs !== null) {
-      const tiempoRestante = expMs - Date.now();
-      if (tiempoRestante <= 0) {
-        setEnlaceExpirado(true);
-      } else {
-        expiracionTimerRef.current = setTimeout(() => {
+    const validarEnlaceEnServidor = async () => {
+      if (!token) {
+        if (activo) {
           setEnlaceExpirado(true);
-          setStatus({ type: '', msg: '' });
-        }, tiempoRestante);
+          setVerificandoEnlace(false);
+        }
+        return;
       }
-    }
+
+      try {
+        const res = await fetch(
+          `https://sigra-zero.onrender.com/api/auth/verify-reset-token?token=${encodeURIComponent(token)}`
+        );
+        const data = await res.json().catch(() => ({}));
+
+        if (!activo) return;
+
+        if (!res.ok || !data.valido) {
+          setEnlaceExpirado(true);
+        } else {
+          setEnlaceExpirado(false);
+          if (typeof data.restanteMs === 'number' && data.restanteMs > 0) {
+            expiracionTimerRef.current = setTimeout(() => {
+              setEnlaceExpirado(true);
+              setStatus({ type: '', msg: '' });
+            }, data.restanteMs);
+          }
+        }
+      } catch (err) {
+        if (activo) {
+          mostrarEstadoSuperior('error', 'No se pudo verificar el enlace. Intenta recargar la página.', 6000);
+        }
+      } finally {
+        if (activo) setVerificandoEnlace(false);
+      }
+    };
+
+    validarEnlaceEnServidor();
 
     return () => {
+      activo = false;
       if (timerRef.current) clearTimeout(timerRef.current);
       if (expiracionTimerRef.current) clearTimeout(expiracionTimerRef.current);
     };
@@ -178,8 +183,11 @@ export default function ResetPassword() {
           <p>Restablecimiento de Credenciales de Acceso</p>
         </div>
 
-        {/* VISTA CONDICIONAL: ENLACE EXPIRADO */}
-        {enlaceExpirado ? (
+        {verificandoEnlace ? (
+          <div style={{ textAlign: 'center', padding: '18px 0', color: '#64748b', fontSize: '0.85rem' }}>
+            Verificando vigencia del enlace...
+          </div>
+        ) : enlaceExpirado ? (
           <div style={{ textAlign: 'center' }}>
             <div
               style={{
@@ -222,7 +230,6 @@ export default function ResetPassword() {
           </div>
         ) : (
           <>
-            {/* AVISO INTEGRADO EN LA PARTE SUPERIOR DE LA TARJETA */}
             {status.msg && (
               <div className={`status-badge ${status.type}`}>
                 {status.type === 'success' ? '✓ ' : status.type === 'error' ? '✕ ' : ''}

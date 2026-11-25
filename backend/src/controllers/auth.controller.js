@@ -268,6 +268,37 @@ async function forgotPassword(req, res) {
   }
 }
 
+// GET /api/auth/verify-reset-token?token=...
+async function verifyResetToken(req, res) {
+  try {
+    const { token } = req.query;
+
+    if (!token) {
+      return res.status(400).json({ valido: false, error: "Token no proporcionado." });
+    }
+
+    const usuario = await prisma.usuarios.findFirst({
+      where: { resetPasswordToken: String(token) },
+      select: { id_usuario: true, resetPasswordExpires: true },
+    });
+
+    if (!usuario || !usuario.resetPasswordExpires) {
+      return res.json({ valido: false });
+    }
+
+    const restanteMs = new Date(usuario.resetPasswordExpires).getTime() - Date.now();
+
+    if (restanteMs <= 0) {
+      return res.json({ valido: false });
+    }
+
+    return res.json({ valido: true, restanteMs });
+  } catch (error) {
+    console.error("Error en verifyResetToken:", error);
+    return res.status(500).json({ valido: false, error: "Error al verificar el enlace." });
+  }
+}
+
 // POST /api/auth/reset-password
 async function resetPassword(req, res) {
   try {
@@ -328,5 +359,6 @@ module.exports = {
   login,
   registrar,
   forgotPassword,
+  verifyResetToken,
   resetPassword,
 };
