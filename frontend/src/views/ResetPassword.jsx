@@ -2,6 +2,24 @@ import React, { useState, useRef, useEffect } from 'react';
 import { useSearchParams, useNavigate } from 'react-router-dom';
 import './Login.css';
 
+// Intenta leer la fecha de expiración (exp) si el token de recuperación es un JWT
+function obtenerExpiracionTokenMs(token) {
+  if (!token || typeof token !== 'string') return null;
+  const partes = token.split('.');
+  if (partes.length !== 3) return null;
+
+  try {
+    const payloadBase64 = partes[1].replace(/-/g, '+').replace(/_/g, '/');
+    const payload = JSON.parse(window.atob(payloadBase64));
+    if (payload && typeof payload.exp === 'number') {
+      return payload.exp * 1000;
+    }
+    return null;
+  } catch (e) {
+    return null;
+  }
+}
+
 export default function ResetPassword() {
   const [searchParams] = useSearchParams();
   const token = searchParams.get('token');
@@ -13,8 +31,10 @@ export default function ResetPassword() {
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [status, setStatus] = useState({ type: '', msg: '' });
   const [cargando, setCargando] = useState(false);
+  const [enlaceExpirado, setEnlaceExpirado] = useState(false);
 
   const timerRef = useRef(null);
+  const expiracionTimerRef = useRef(null);
 
   const tieneMayuscula = /[A-Z]/.test(nuevaPassword);
   const tieneMinuscula = /[a-z]/.test(nuevaPassword);
@@ -40,10 +60,31 @@ export default function ResetPassword() {
   };
 
   useEffect(() => {
+    // 1. Si no viene token en la URL, marcar como expirado / inválido de inmediato
+    if (!token) {
+      setEnlaceExpirado(true);
+      return;
+    }
+
+    // 2. Si el token es un JWT con exp, validar ahora y programar cambio automático al vencer
+    const expMs = obtenerExpiracionTokenMs(token);
+    if (expMs !== null) {
+      const tiempoRestante = expMs - Date.now();
+      if (tiempoRestante <= 0) {
+        setEnlaceExpirado(true);
+      } else {
+        expiracionTimerRef.current = setTimeout(() => {
+          setEnlaceExpirado(true);
+          setStatus({ type: '', msg: '' });
+        }, tiempoRestante);
+      }
+    }
+
     return () => {
       if (timerRef.current) clearTimeout(timerRef.current);
+      if (expiracionTimerRef.current) clearTimeout(expiracionTimerRef.current);
     };
-  }, []);
+  }, [token]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -75,7 +116,7 @@ export default function ResetPassword() {
     }
 
     if (!token) {
-      mostrarEstadoSuperior('error', 'Token de recuperación no válido o ausente en el enlace.');
+      setEnlaceExpirado(true);
       return;
     }
 
@@ -92,7 +133,19 @@ export default function ResetPassword() {
       const data = await response.json().catch(() => ({}));
 
       if (!response.ok) {
-        throw new Error(data.error || data.message || 'Ocurrió un error al restablecer la contraseña.');
+        const msgError = String(data.error || data.message || '');
+        const esErrorDeExpiracion =
+          response.status === 401 ||
+          response.status === 410 ||
+          /expir|caduc|vencid|inv[aá]lid|usado|token/i.test(msgError);
+
+        if (esErrorDeExpiracion) {
+          setEnlaceExpirado(true);
+          setStatus({ type: '', msg: '' });
+          return;
+        }
+
+        throw new Error(msgError || 'Ocurrió un error al restablecer la contraseña.');
       }
 
       if (data.token && data.usuario) {
@@ -103,7 +156,7 @@ export default function ResetPassword() {
       mostrarEstadoSuperior('success', '¡Contraseña actualizada con éxito! Ingresando a tu panel...', 0);
 
       setTimeout(() => {
-        navigate('/');
+        navigate('/', { replace: true });
       }, 1800);
 
     } catch (err) {
@@ -125,118 +178,163 @@ export default function ResetPassword() {
           <p>Restablecimiento de Credenciales de Acceso</p>
         </div>
 
-        {/* AVISO INTEGRADO EN LA PARTE SUPERIOR DE LA TARJETA */}
-        {status.msg && (
-          <div className={`status-badge ${status.type}`}>
-            {status.type === 'success' ? '✓ ' : status.type === 'error' ? '✕ ' : ''}
-            {status.msg}
+        {/* VISTA CONDICIONAL: ENLACE EXPIRADO */}
+        {enlaceExpirado ? (
+          <div style={{ textAlign: 'center' }}>
+            <div
+              style={{
+                backgroundColor: '#fef2f2',
+                border: '1px solid #fecaca',
+                borderRadius: '8px',
+                padding: '18px 16px',
+                marginBottom: '16px',
+              }}
+            >
+              <p
+                style={{
+                  margin: '0 0 8px 0',
+                  color: '#991b1b',
+                  fontWeight: '700',
+                  fontSize: '0.95rem',
+                }}
+              >
+                El tiempo del enlace ha expirado
+              </p>
+              <p
+                style={{
+                  margin: 0,
+                  color: '#7f1d1d',
+                  fontSize: '0.82rem',
+                  lineHeight: 1.5,
+                }}
+              >
+                El límite de 15 minutos ha concluido o este enlace ya fue utilizado. Por favor, solicita un nuevo reenvío de recuperación de contraseña.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              className="submit-btn"
+              onClick={() => navigate('/login', { replace: true })}
+            >
+              SOLICITAR NUEVO ENLACE
+            </button>
           </div>
+        ) : (
+          <>
+            {/* AVISO INTEGRADO EN LA PARTE SUPERIOR DE LA TARJETA */}
+            {status.msg && (
+              <div className={`status-badge ${status.type}`}>
+                {status.type === 'success' ? '✓ ' : status.type === 'error' ? '✕ ' : ''}
+                {status.msg}
+              </div>
+            )}
+
+            <form onSubmit={handleSubmit} className="login-form">
+              <div className="form-group">
+                <label htmlFor="nuevaPassword">Nueva Contraseña</label>
+                <div className="input-field">
+                  <svg className="field-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                  </svg>
+                  <input
+                    type={showPassword ? 'text' : 'password'}
+                    id="nuevaPassword"
+                    placeholder="••••••••"
+                    value={nuevaPassword}
+                    onChange={(e) => {
+                      setNuevaPassword(e.target.value);
+                      limpiarEstadoAlEscribir();
+                    }}
+                    required
+                    disabled={cargando}
+                  />
+                  <button
+                    type="button"
+                    className="eye-button"
+                    onClick={() => setShowPassword(!showPassword)}
+                    tabIndex="-1"
+                  >
+                    {showPassword ? (
+                      <svg width="18" height="18" fill="none" stroke="#9ca3af" strokeWidth="2" viewBox="0 0 24 24">
+                        <path d="M17.94 17.94A10.07 10.07 0 0112 19c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" />
+                        <line x1="1" y1="1" x2="23" y2="23" />
+                      </svg>
+                    ) : (
+                      <svg width="18" height="18" fill="none" stroke="#9ca3af" strokeWidth="2" viewBox="0 0 24 24">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label htmlFor="confirmarPassword">Confirmar Nueva Contraseña</label>
+                <div className="input-field">
+                  <svg className="field-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2">
+                    <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
+                    <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                  </svg>
+                  <input
+                    type={showConfirmPassword ? 'text' : 'password'}
+                    id="confirmarPassword"
+                    placeholder="••••••••"
+                    value={confirmarPassword}
+                    onChange={(e) => {
+                      setConfirmarPassword(e.target.value);
+                      limpiarEstadoAlEscribir();
+                    }}
+                    required
+                    disabled={cargando}
+                  />
+                  <button
+                    type="button"
+                    className="eye-button"
+                    onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                    tabIndex="-1"
+                  >
+                    {showConfirmPassword ? (
+                      <svg width="18" height="18" fill="none" stroke="#9ca3af" strokeWidth="2" viewBox="0 0 24 24">
+                        <path d="M17.94 17.94A10.07 10.07 0 0112 19c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" />
+                        <line x1="1" y1="1" x2="23" y2="23" />
+                      </svg>
+                    ) : (
+                      <svg width="18" height="18" fill="none" stroke="#9ca3af" strokeWidth="2" viewBox="0 0 24 24">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
+                        <circle cx="12" cy="12" r="3" />
+                      </svg>
+                    )}
+                  </button>
+                </div>
+              </div>
+
+              <div className="password-requirements">
+                <p className={tieneLargoMinimo ? 'valid' : 'invalid'}>
+                  {tieneLargoMinimo ? '✓' : '○'} Mínimo 8 caracteres
+                </p>
+                <p className={tieneMayuscula && tieneMinuscula ? 'valid' : 'invalid'}>
+                  {tieneMayuscula && tieneMinuscula ? '✓' : '○'} Mayúscula y minúscula
+                </p>
+                <p className={tieneEspecial ? 'valid' : 'invalid'}>
+                  {tieneEspecial ? '✓' : '○'} Carácter especial (@, $, !, %, *, #, etc.)
+                </p>
+              </div>
+
+              <button type="submit" disabled={cargando} className="submit-btn">
+                {cargando ? 'ACTUALIZANDO...' : 'ACTUALIZAR CONTRASEÑA'}
+              </button>
+            </form>
+          </>
         )}
-
-        <form onSubmit={handleSubmit} className="login-form">
-          <div className="form-group">
-            <label htmlFor="nuevaPassword">Nueva Contraseña</label>
-            <div className="input-field">
-              <svg className="field-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2">
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-              </svg>
-              <input
-                type={showPassword ? 'text' : 'password'}
-                id="nuevaPassword"
-                placeholder="••••••••"
-                value={nuevaPassword}
-                onChange={(e) => {
-                  setNuevaPassword(e.target.value);
-                  limpiarEstadoAlEscribir();
-                }}
-                required
-                disabled={cargando}
-              />
-              <button
-                type="button"
-                className="eye-button"
-                onClick={() => setShowPassword(!showPassword)}
-                tabIndex="-1"
-              >
-                {showPassword ? (
-                  <svg width="18" height="18" fill="none" stroke="#9ca3af" strokeWidth="2" viewBox="0 0 24 24">
-                    <path d="M17.94 17.94A10.07 10.07 0 0112 19c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" />
-                    <line x1="1" y1="1" x2="23" y2="23" />
-                  </svg>
-                ) : (
-                  <svg width="18" height="18" fill="none" stroke="#9ca3af" strokeWidth="2" viewBox="0 0 24 24">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                    <circle cx="12" cy="12" r="3" />
-                  </svg>
-                )}
-              </button>
-            </div>
-          </div>
-
-          <div className="form-group">
-            <label htmlFor="confirmarPassword">Confirmar Nueva Contraseña</label>
-            <div className="input-field">
-              <svg className="field-icon" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#6b7280" strokeWidth="2">
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
-              </svg>
-              <input
-                type={showConfirmPassword ? 'text' : 'password'}
-                id="confirmarPassword"
-                placeholder="••••••••"
-                value={confirmarPassword}
-                onChange={(e) => {
-                  setConfirmarPassword(e.target.value);
-                  limpiarEstadoAlEscribir();
-                }}
-                required
-                disabled={cargando}
-              />
-              <button
-                type="button"
-                className="eye-button"
-                onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                tabIndex="-1"
-              >
-                {showConfirmPassword ? (
-                  <svg width="18" height="18" fill="none" stroke="#9ca3af" strokeWidth="2" viewBox="0 0 24 24">
-                    <path d="M17.94 17.94A10.07 10.07 0 0112 19c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24" />
-                    <line x1="1" y1="1" x2="23" y2="23" />
-                  </svg>
-                ) : (
-                  <svg width="18" height="18" fill="none" stroke="#9ca3af" strokeWidth="2" viewBox="0 0 24 24">
-                    <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z" />
-                    <circle cx="12" cy="12" r="3" />
-                  </svg>
-                )}
-              </button>
-            </div>
-          </div>
-
-          <div className="password-requirements">
-            <p className={tieneLargoMinimo ? 'valid' : 'invalid'}>
-              {tieneLargoMinimo ? '✓' : '○'} Mínimo 8 caracteres
-            </p>
-            <p className={tieneMayuscula && tieneMinuscula ? 'valid' : 'invalid'}>
-              {tieneMayuscula && tieneMinuscula ? '✓' : '○'} Mayúscula y minúscula
-            </p>
-            <p className={tieneEspecial ? 'valid' : 'invalid'}>
-              {tieneEspecial ? '✓' : '○'} Carácter especial (@, $, !, %, *, #, etc.)
-            </p>
-          </div>
-
-          <button type="submit" disabled={cargando} className="submit-btn">
-            {cargando ? 'ACTUALIZANDO...' : 'ACTUALIZAR CONTRASEÑA'}
-          </button>
-        </form>
       </div>
-     
-     <footer className="login-footer">
+
+      <footer className="login-footer">
         © 2026 <strong>SIGRA - WinfoRed</strong>. Todos los derechos reservados. · Desarrollado por{" "}
         <strong>Carolina Garcia</strong>.
       </footer>
-      
     </div>
   );
 }
