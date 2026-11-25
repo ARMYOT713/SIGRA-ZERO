@@ -451,33 +451,82 @@ const obtenerDispositivosMapa = async (req, res) => {
 };
 
 // ==================== REPORTES ====================
+let cacheReportes = { data: null, expiraEn: 0 };
+const CACHE_REPORTES_TTL_MS = 10000; // 10 segundos
+
+const invalidarCacheReportes = () => {
+  cacheReportes = { data: null, expiraEn: 0 };
+};
+
 const obtenerReportes = async (req, res) => {
   try {
+    const ahora = Date.now();
+    if (cacheReportes.data && ahora < cacheReportes.expiraEn) {
+      return res.json(cacheReportes.data);
+    }
+
     const reportes = await prisma.reportes.findMany({
       include: {
         cliente: {
-          include: {
+          select: {
+            id_cliente: true,
+            nombre_completo: true,
+            cliente_ref: true,
+            contacto: true,
+            localidad: true,
+            latitud: true,
+            longitud: true,
             nap: {
-              include: {
-                poste: true
+              select: {
+                id_nap: true,
+                codigo_nap: true,
+                poste: {
+                  select: { poste_id: true, codigo: true }
+                }
               }
             }
           }
         },
-        onu: true,
+        onu: {
+          select: {
+            id_onus: true,
+            codigo: true,
+            no_serie: true
+          }
+        },
         nap: {
-          include: {
-            poste: true
+          select: {
+            id_nap: true,
+            codigo_nap: true,
+            capacidad_puertos: true,
+            latitud: true,
+            longitud: true,
+            poste: {
+              select: { poste_id: true, codigo: true }
+            }
           }
         },
         poste: {
-          include: {
-            naps: true
+          select: {
+            poste_id: true,
+            codigo: true,
+            localidad: true,
+            latitud: true,
+            longitud: true,
+            naps: {
+              select: { id_nap: true, codigo_nap: true }
+            }
           }
         }
       },
       orderBy: { fecha_reporte: 'desc' }
     });
+
+    cacheReportes = {
+      data: reportes,
+      expiraEn: ahora + CACHE_REPORTES_TTL_MS
+    };
+
     res.json(reportes);
   } catch (error) {
     console.error("Error al obtener reportes:", error);
@@ -487,15 +536,15 @@ const obtenerReportes = async (req, res) => {
 
 const crearReporte = async (req, res) => {
   try {
-    const { 
-      tipo_elemento, 
-      id_elemento, 
-      falla_presentada, 
-      prioridad, 
-      descripcion, 
-      tecnico_asignado 
+    const {
+      tipo_elemento,
+      id_elemento,
+      falla_presentada,
+      prioridad,
+      descripcion,
+      tecnico_asignado
     } = req.body;
-    
+
     if (!descripcion) {
       return res.status(400).json({ error: 'La descripción del reporte es obligatoria' });
     }
@@ -543,18 +592,20 @@ const crearReporte = async (req, res) => {
         poste: true
       }
     });
-    
+
+    invalidarCacheReportes();
     res.status(201).json({ mensaje: 'Reporte creado exitosamente', reporte: nuevoReporte });
   } catch (error) {
     console.error("Error al crear reporte:", error);
     res.status(500).json({ error: 'Error al crear el reporte', detalle: error.message });
   }
 };
+
 const actualizarEstatusReporte = async (req, res) => {
   try {
     const { id } = req.params;
     const { estatus, comentarios_solucion, evidencia_foto, falla_presentada, prioridad, descripcion, tecnico_asignado } = req.body;
-    
+
     const fecha_resolucion = estatus === false ? new Date() : null;
 
     const reporteActualizado = await prisma.reportes.update({
@@ -577,53 +628,25 @@ const actualizarEstatusReporte = async (req, res) => {
       }
     });
 
+    invalidarCacheReportes();
     res.json({ mensaje: 'Reporte actualizado exitosamente', reporte: reporteActualizado });
   } catch (error) {
     console.error("Error al actualizar reporte:", error);
     res.status(500).json({ error: 'Error al actualizar el reporte', detalle: error.message });
   }
 };
+
 const eliminarReporte = async (req, res) => {
   try {
     const { id } = req.params;
     await prisma.reportes.delete({ where: { id_reporte: Number(id) } });
+    invalidarCacheReportes();
     res.json({ mensaje: 'Reporte eliminado exitosamente' });
   } catch (error) {
     console.error("Error al eliminar el reporte:", error);
     res.status(500).json({ error: 'Error al eliminar el reporte', detalle: error.message });
   }
 };
-
-const obtenerTareasUrgentesHoy = async (req, res) => {
-  try {
-    const hoyInicio = new Date();
-    hoyInicio.setHours(0, 0, 0, 0);
-
-    const hoyFin = new Date();
-    hoyFin.setHours(23, 59, 59, 999);
-
-    const tareasUrgentes = await prisma.reportes.findMany({
-      where: {
-        estatus: true, // Tareas activas/pendientes
-        prioridad: { in: ['Urgente', 'URGENTE', 'Alta', 'ALTA'] },
-        fecha_reporte: {
-          gte: hoyInicio,
-          lte: hoyFin
-        }
-      },
-      include: {
-        cliente: true,
-        nap: true,
-        poste: true
-      }
-    });
-
-    res.json(tareasUrgentes);
-  } catch (error) {
-    res.status(500).json({ error: 'Error al obtener tareas urgentes', detalle: error.message });
-  }
-};
-
 
 
 module.exports = {
