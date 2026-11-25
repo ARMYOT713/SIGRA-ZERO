@@ -20,6 +20,11 @@ const formatearLocalidadUI = (loc) => {
   return String(loc).trim().toUpperCase().replace(/_/g, '-');
 };
 
+const formatearCodigoConLocalidad = (codigo, localidad) => {
+  if (!codigo) return '';
+  return `${codigo}_${formatearLocalidadUI(localidad)}`;
+};
+
 function Dispositivos() {
   const [pestanaActiva, setPestanaActiva] = useState('CLIENTES');
   const [filtroEstatusDispositivo, setFiltroEstatusDispositivo] = useState('TODOS');
@@ -420,7 +425,7 @@ function Dispositivos() {
       posteAsociado: posteAsocVal || 'Sin poste asociado',
       poste_id: posteObjEncontrado ? String(posteObjEncontrado.realId) : (nap.poste_id ? String(nap.poste_id) : '')
     }));
-    setTextoBusquedaNap(nap.codigo);
+    setTextoBusquedaNap(formatearCodigoConLocalidad(nap.codigo, nap.localidad));
     setMostrarDropdownNap(false);
   };
 
@@ -536,10 +541,13 @@ function Dispositivos() {
     setMostrarDropdownNapPoste(false);
     await cargarDatosAuxiliares();
 
+    const locItem = formatearLocalidadUI(item.localidad);
     const posteEncontrado = postesDisponiblesBD.find(p => String(p.realId) === String(item.poste_id || item.poste?.id));
     const nombrePosteInicial = item.posteAsociado || posteEncontrado?.codigo || '';
-    setTextoBusquedaPoste(nombrePosteInicial);
-    setTextoBusquedaNap(item.napAsociada || '');
+    const locPosteInicial = posteEncontrado ? posteEncontrado.localidad : locItem;
+
+    setTextoBusquedaPoste(nombrePosteInicial ? formatearCodigoConLocalidad(nombrePosteInicial, locPosteInicial) : '');
+    setTextoBusquedaNap(item.napAsociada ? formatearCodigoConLocalidad(item.napAsociada, locItem) : '');
 
     const idPosteActual = String(item.realId);
     const napsInicialesPoste = napsDisponiblesBD.filter(n => 
@@ -562,7 +570,7 @@ function Dispositivos() {
     setForm({
       tipo: item.tipo,
       codigo: item.codigo_nap || item.codigo || item.cliente_ref || '',
-      localidad: formatearLocalidadUI(item.localidad),
+      localidad: locItem,
       poste_id: item.poste_id !== null && item.poste_id !== undefined ? String(item.poste_id) : '',
       posteAsociado: nombrePosteInicial,
       clienteAsociado: item.clienteAsociado || '',
@@ -786,46 +794,40 @@ function Dispositivos() {
     : (napSeleccionadaObj ? formatearLocalidadUI(napSeleccionadaObj.localidad) : '');
 
   const posteAsociadoDetectado = codigoPosteDetectado
-    ? `[${localidadPosteDetectado}] ${codigoPosteDetectado}`
+    ? formatearCodigoConLocalidad(codigoPosteDetectado, localidadPosteDetectado)
     : 'N/A';
-
-  const napSeleccionadaEtiqueta = napSeleccionadaObj
-    ? `[${formatearLocalidadUI(napSeleccionadaObj.localidad)}] ${napSeleccionadaObj.codigo}`
-    : '';
 
   const posteSeleccionadoParaNapObj = postesDisponiblesBD.find(
     p => String(p.realId) === String(form.poste_id) || String(p.codigo || '').toLowerCase() === String(form.posteAsociado || '').toLowerCase()
   );
 
   const etiquetaPosteSeleccionadoNap = posteSeleccionadoParaNapObj
-    ? `[${formatearLocalidadUI(posteSeleccionadoParaNapObj.localidad)}] ${posteSeleccionadoParaNapObj.codigo}`
-    : (form.posteAsociado ? `[${localidadFormActual}] ${form.posteAsociado}` : '');
+    ? formatearCodigoConLocalidad(posteSeleccionadoParaNapObj.codigo, posteSeleccionadoParaNapObj.localidad)
+    : (form.posteAsociado ? formatearCodigoConLocalidad(form.posteAsociado, localidadFormActual) : '');
 
   // Filtrado automático de dropdowns por la Localidad / Barrio seleccionada
   const postesFiltradosDropdown = postesDisponiblesBD.filter(p => {
     if (formatearLocalidadUI(p.localidad) !== localidadFormActual) return false;
     if (!textoBusquedaPoste.trim()) return true;
     const texto = textoBusquedaPoste.toLowerCase().trim();
-    return (p.codigo || '').toLowerCase().includes(texto) ||
-           formatearLocalidadUI(p.localidad).toLowerCase().includes(texto);
+    const codigoCompleto = formatearCodigoConLocalidad(p.codigo, p.localidad).toLowerCase();
+    return (p.codigo || '').toLowerCase().includes(texto) || codigoCompleto.includes(texto);
   });
 
   const napsFiltradasDropdown = napsDisponiblesBD.filter(n => {
     if (formatearLocalidadUI(n.localidad) !== localidadFormActual) return false;
     if (!textoBusquedaNap.trim()) return true;
-    const codigo = (n.codigo || '').toLowerCase();
-    const poste = (n.posteAsociado || '').toLowerCase();
-    const loc = formatearLocalidadUI(n.localidad).toLowerCase();
     const texto = textoBusquedaNap.toLowerCase().trim();
-    return codigo.includes(texto) || poste.includes(texto) || loc.includes(texto);
+    const codigoCompleto = formatearCodigoConLocalidad(n.codigo, n.localidad).toLowerCase();
+    return (n.codigo || '').toLowerCase().includes(texto) || codigoCompleto.includes(texto);
   });
 
   const napsFiltradasParaDropdownPoste = napsDisponiblesBD.filter(n => {
     if (formatearLocalidadUI(n.localidad) !== localidadFormActual) return false;
     if (!textoBusquedaNapPoste.trim() || textoBusquedaNapPoste === 'No Aplica') return true;
     const texto = textoBusquedaNapPoste.toLowerCase().trim();
-    return (n.codigo || '').toLowerCase().includes(texto) ||
-           formatearLocalidadUI(n.localidad).toLowerCase().includes(texto);
+    const codigoCompleto = formatearCodigoConLocalidad(n.codigo, n.localidad).toLowerCase();
+    return (n.codigo || '').toLowerCase().includes(texto) || codigoCompleto.includes(texto);
   });
 
   return (
@@ -1082,14 +1084,14 @@ function Dispositivos() {
                                 return (
                                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
                                     <div><strong>Contacto / Serie:</strong> {item.contacto || item.no_serie || 'N/A'}</div>
-                                    <div><strong>NAP / Puerto:</strong> {item.napAsociada ? `[${locNapDetalle}] ${item.napAsociada} (P. ${item.puertoAsignado || 'N/A'})` : 'N/A'}</div>
-                                    <div><strong>Poste Asoc.:</strong> {posteCodigoDetalle ? `[${locPosteDetalle}] ${posteCodigoDetalle}` : 'N/A'}</div>
+                                    <div><strong>NAP / Puerto:</strong> {item.napAsociada ? `${formatearCodigoConLocalidad(item.napAsociada, locNapDetalle)} (P. ${item.puertoAsignado || 'N/A'})` : 'N/A'}</div>
+                                    <div><strong>Poste Asoc.:</strong> {posteCodigoDetalle ? formatearCodigoConLocalidad(posteCodigoDetalle, locPosteDetalle) : 'N/A'}</div>
                                   </div>
                                 );
                               })()
                             ) : item.tipo === 'ONU' ? (
                               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
-                                <div><strong>Localidad:</strong> [{locItem}]</div>
+                                <div><strong>Código Zona:</strong> {formatearCodigoConLocalidad(item.codigo, locItem)}</div>
                                 <div><strong>N° Serie ONU:</strong> {item.no_serie || item.contacto || 'N/A'}</div>
                                 <div><strong>Modelo:</strong> {item.modelo || 'N/A'}</div>
                                 <div><strong>Instalación:</strong> {item.fecha_instalacion ? item.fecha_instalacion.split('T')[0] : 'S/N'}</div>
@@ -1105,7 +1107,7 @@ function Dispositivos() {
                                 return (
                                   <div>
                                     <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '12px' }}>
-                                      <div><strong>Poste Asoc.:</strong> {item.posteAsociado ? `[${locPosteNap}] ${item.posteAsociado}` : 'N/A'}</div>
+                                      <div><strong>Poste Asoc.:</strong> {item.posteAsociado ? formatearCodigoConLocalidad(item.posteAsociado, locPosteNap) : 'N/A'}</div>
                                       <div><strong>N° Serie:</strong> {item.no_serie || 'N/A'}</div>
                                       <div><strong>Puertos Usados:</strong> {item.puertos_usados} / {item.capacidad_puertos}</div>
                                     </div>
@@ -1124,7 +1126,12 @@ function Dispositivos() {
                                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px' }}>
                                                   <div>
                                                     <span style={{ fontWeight: '700', color: '#475569' }}>Nombre del cliente:</span>{' '}
-                                                    <span style={{ color: '#0f172a', fontWeight: '700' }}>[{formatearLocalidadUI(cli.localidad)}] {cli.nombre_completo || 'Sin nombre'}</span>
+                                                    <span style={{ color: '#0f172a', fontWeight: '700' }}>{cli.nombre_completo || 'Sin nombre'}</span>
+                                                    {cli.codigo && (
+                                                      <span style={{ color: '#64748b', fontWeight: '600', marginLeft: '6px' }}>
+                                                        ({formatearCodigoConLocalidad(cli.codigo, cli.localidad)})
+                                                      </span>
+                                                    )}
                                                   </div>
                                                 </div>
                                                 <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginTop: '2px' }}>
@@ -1156,7 +1163,7 @@ function Dispositivos() {
                                   <strong>Cajas NAP en este poste:</strong> {
                                     napsDisponiblesBD
                                       .filter(n => String(n.poste_id) === String(item.realId) || String(n.posteAsociado || '').toLowerCase() === String(item.codigo || '').toLowerCase())
-                                      .map(n => `[${formatearLocalidadUI(n.localidad)}] ${n.codigo}`)
+                                      .map(n => formatearCodigoConLocalidad(n.codigo, n.localidad))
                                       .join(', ') || 'Ninguna'
                                   }
                                 </div>
@@ -1355,7 +1362,6 @@ function Dispositivos() {
                                 const capacidadTotal = Number(nap.capacidad_puertos) || 8;
                                 const usados = Number(nap.puertos_usados) || 0;
                                 const libres = Math.max(0, capacidadTotal - usados);
-                                const locNap = formatearLocalidadUI(nap.localidad);
 
                                 return (
                                   <div
@@ -1373,7 +1379,7 @@ function Dispositivos() {
                                     onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f1f5f9'; }}
                                     onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#ffffff'; }}
                                   >
-                                    [{locNap}] {nap.codigo} {nap.posteAsociado ? `(Poste: [${locNap}] ${nap.posteAsociado})` : ''} — Puertos usados: {usados}/{capacidadTotal} (Libres: {libres})
+                                    {formatearCodigoConLocalidad(nap.codigo, nap.localidad)} — Puertos usados: {usados}/{capacidadTotal} (Libres: {libres})
                                   </div>
                                 );
                               })
@@ -1424,15 +1430,10 @@ function Dispositivos() {
                       </div>
                     </div>
 
-                    <div style={{ paddingTop: '6px', borderTop: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
+                    <div style={{ paddingTop: '6px', borderTop: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
                       <span style={{ color: '#1e3a8a', fontWeight: '700', fontSize: '0.8rem' }}>
                         Poste Asociado: <span style={{ fontWeight: '600', color: '#334155' }}>{posteAsociadoDetectado}</span>
                       </span>
-                      {napSeleccionadaEtiqueta && (
-                        <span style={{ color: '#0369a1', fontWeight: '700', fontSize: '0.78rem', backgroundColor: '#e0f2fe', padding: '2px 8px', borderRadius: '4px' }}>
-                          NAP: {napSeleccionadaEtiqueta}
-                        </span>
-                      )}
                     </div>
 
                   </div>
@@ -1474,7 +1475,7 @@ function Dispositivos() {
                       />
                     </div>
                     <div style={{ padding: '9px 12px', borderRadius: '6px', backgroundColor: '#e0f2fe', color: '#0369a1', fontSize: '0.78rem', fontWeight: '700' }}>
-                      Zona: [{localidadFormActual}]
+                      {form.codigo ? formatearCodigoConLocalidad(form.codigo, localidadFormActual) : `Zona: ${localidadFormActual}`}
                     </div>
                   </div>
                 </div>
@@ -1576,8 +1577,7 @@ function Dispositivos() {
 
                             const estaOcupado = napAsociadaAlPoste && !esLaMismaNap;
                             const codigoNapOcupante = napAsociadaAlPoste ? (napAsociadaAlPoste.codigo || napAsociadaAlPoste.codigo_nap) : '';
-                            const locPoste = formatearLocalidadUI(p.localidad);
-                            const locNapOcupante = napAsociadaAlPoste ? formatearLocalidadUI(napAsociadaAlPoste.localidad) : locPoste;
+                            const locNapOcupante = napAsociadaAlPoste ? napAsociadaAlPoste.localidad : p.localidad;
 
                             return (
                               <div
@@ -1590,7 +1590,7 @@ function Dispositivos() {
                                     poste_id: String(p.realId),
                                     posteAsociado: p.codigo
                                   }));
-                                  setTextoBusquedaPoste(p.codigo);
+                                  setTextoBusquedaPoste(formatearCodigoConLocalidad(p.codigo, p.localidad));
                                   setMostrarDropdownPostes(false);
                                 }}
                                 style={{
@@ -1605,8 +1605,8 @@ function Dispositivos() {
                                 }}
                               >
                                 {estaOcupado 
-                                  ? `[${locPoste}] ${p.codigo} — Ocupado por NAP: [${locNapOcupante}] ${codigoNapOcupante}` 
-                                  : `[${locPoste}] ${p.codigo} — Disponible`}
+                                  ? `${formatearCodigoConLocalidad(p.codigo, p.localidad)} — Ocupado por NAP: ${formatearCodigoConLocalidad(codigoNapOcupante, locNapOcupante)}` 
+                                  : `${formatearCodigoConLocalidad(p.codigo, p.localidad)} — Disponible`}
                               </div>
                             );
                           })
@@ -1696,7 +1696,6 @@ function Dispositivos() {
                                                          (posteAsignadoNapCodigo && codigoPosteActualForm && posteAsignadoNapCodigo === codigoPosteActualForm);
 
                                 const estaAsignadaAOtro = napItem.posteAsociado && !yaEstaEnEstePoste;
-                                const locNap = formatearLocalidadUI(napItem.localidad);
 
                                 return (
                                   <div
@@ -1719,8 +1718,8 @@ function Dispositivos() {
                                     }}
                                   >
                                     {estaAsignadaAOtro 
-                                      ? `[${locNap}] ${napItem.codigo} — Ocupada por POSTE: [${locNap}] ${napItem.posteAsociado}` 
-                                      : `[${locNap}] ${napItem.codigo} — Disponible`}
+                                      ? `${formatearCodigoConLocalidad(napItem.codigo, napItem.localidad)} — Ocupada por POSTE: ${formatearCodigoConLocalidad(napItem.posteAsociado, napItem.localidad)}` 
+                                      : `${formatearCodigoConLocalidad(napItem.codigo, napItem.localidad)} — Disponible`}
                                   </div>
                                 );
                               })
@@ -1735,7 +1734,7 @@ function Dispositivos() {
                         napsSeleccionadasPosteForm.map((napSel, iSel) => (
                           <div key={`nap-sel-${iSel}`} style={{ backgroundColor: '#ffffff', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
                             <span style={{ fontWeight: '700', color: '#1e293b' }}>
-                              [{formatearLocalidadUI(napSel.localidad)}] {napSel.codigo}
+                              {formatearCodigoConLocalidad(napSel.codigo, napSel.localidad)}
                             </span>
                             <button
                               type="button"
