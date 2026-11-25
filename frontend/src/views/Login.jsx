@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { useNavigate, Navigate } from 'react-router-dom';
+import { useNavigate, Navigate, useLocation } from 'react-router-dom';
 import { esTokenValido } from '../components/ProtectedRoute';
 import { useAuth } from '../context/AuthContext';
 import './Login.css';
@@ -11,7 +11,10 @@ export const Login = () => {
   const [status, setStatus] = useState({ type: '', msg: '' });
   const [loading, setLoading] = useState(false);
 
-  const [vistaActiva, setVistaActiva] = useState('login'); // 'login' | 'recuperar' | 'setup_admin'
+  const location = useLocation();
+  const [vistaActiva, setVistaActiva] = useState(
+    location.state?.vista === 'recuperar' ? 'recuperar' : 'login'
+  );
   const [recoveryEmail, setRecoveryEmail] = useState('');
   const [recoveryLoading, setRecoveryLoading] = useState(false);
   const [recoverySent, setRecoverySent] = useState(false);

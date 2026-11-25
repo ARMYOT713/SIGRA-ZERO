@@ -223,10 +223,10 @@ export default function ResetPassword() {
             <button
               type="button"
               className="submit-btn"
-              onClick={() => navigate('/login', { replace: true })}
+              onClick={() => navigate('/login', { replace: true, state: { vista: 'recuperar' } })}
             >
-              SOLICITAR NUEVO ENLACE
-            </button>
+             SOLICITAR NUEVO ENLACE
+          </button>
           </div>
         ) : (
           <>
