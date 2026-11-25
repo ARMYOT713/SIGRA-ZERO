@@ -15,6 +15,11 @@ const CATALOGO_LOCALIDADES = [
   { codigo: "YDJ", nombre: "YDJ - Yondeje" }
 ];
 
+const formatearLocalidadUI = (loc) => {
+  if (!loc) return 'MX-B1';
+  return String(loc).trim().toUpperCase().replace(/_/g, '-');
+};
+
 function Dispositivos() {
   const [pestanaActiva, setPestanaActiva] = useState('CLIENTES');
   const [filtroEstatusDispositivo, setFiltroEstatusDispositivo] = useState('TODOS');
@@ -101,7 +106,7 @@ function Dispositivos() {
         realId: item.id || item.poste_id || item.id_poste || item._id,
         uniqueKey: `poste-${item.id || idx}`,
         codigo: item.codigo || item.codigo_poste,
-        localidad: item.localidad || 'MX-B1',
+        localidad: formatearLocalidadUI(item.localidad),
         tipo: 'Poste',
         estado: (item.estado || item.estatus || 'ACTIVO').toUpperCase()
       }));
@@ -120,7 +125,7 @@ function Dispositivos() {
           uniqueKey: `onu-${item.id || idx}`,
           tipo: 'ONU',
           codigo: item.cliente_ref || item.codigo || '',
-          localidad: item.localidad || 'MX-B1',
+          localidad: formatearLocalidadUI(item.localidad),
           no_serie: item.no_serie || item.contacto || '',
           modelo: item.modelo || '',
           estado: (item.estado || item.estatus || 'ACTIVO').toUpperCase()
@@ -157,7 +162,7 @@ function Dispositivos() {
             uniqueKey: `cliente-${item.id || idx}`,
             tipo: 'Clientes',
             codigo: item.cliente_ref || item.codigo || '',
-            localidad: item.localidad || 'MX-B1',
+            localidad: formatearLocalidadUI(item.localidad),
             nombre_completo: item.nombre_completo || '',
             no_serie: item.no_serie || item.contacto || '',
             napAsociada: napVal,
@@ -198,7 +203,7 @@ function Dispositivos() {
           realId: item.id || item.nap_id || item.id_nap || item._id,
           uniqueKey: `nap-${item.id || idx}`,
           codigo: codigoNap,
-          localidad: item.localidad || 'MX-B1',
+          localidad: formatearLocalidadUI(item.localidad),
           tipo: 'Caja NAP',
           poste_id: idPosteReferencia || '',
           posteAsociado: posteAsocVal,
@@ -321,7 +326,12 @@ function Dispositivos() {
       if (resPostes.ok) {
         const data = await resPostes.json();
         const lista = Array.isArray(data) ? data : data.postes || [];
-        postesTemp = lista.map(item => ({ ...item, realId: item.id || item.poste_id, codigo: item.codigo || item.codigo_poste }));
+        postesTemp = lista.map(item => ({
+          ...item,
+          realId: item.id || item.poste_id,
+          codigo: item.codigo || item.codigo_poste,
+          localidad: formatearLocalidadUI(item.localidad)
+        }));
         setPostesDisponiblesBD(postesTemp);
       }
 
@@ -354,6 +364,7 @@ function Dispositivos() {
           return { 
             ...item, 
             codigo: codigoNap, 
+            localidad: formatearLocalidadUI(item.localidad),
             realId: item.id || item.nap_id || item.id_nap,
             posteAsociado: posteAsocVal,
             poste_id: idPosteRef || '',
@@ -398,7 +409,9 @@ function Dispositivos() {
 
   const seleccionarNap = (nap) => {
     const posteAsocVal = nap.posteAsociado || nap.poste_asociado || nap.poste?.codigo || '';
-    const posteObjEncontrado = postesDisponiblesBD.find(p => p.codigo === posteAsocVal || String(p.realId) === String(nap.poste_id));
+    const posteObjEncontrado = postesDisponiblesBD.find(
+      p => p.codigo === posteAsocVal || String(p.realId) === String(nap.poste_id)
+    );
 
     setForm(prev => ({
       ...prev,
@@ -409,6 +422,26 @@ function Dispositivos() {
     }));
     setTextoBusquedaNap(nap.codigo);
     setMostrarDropdownNap(false);
+  };
+
+  const handleCambioLocalidadForm = (nuevaLocalidad) => {
+    const locNormalizada = formatearLocalidadUI(nuevaLocalidad);
+    setForm(prev => ({
+      ...prev,
+      localidad: locNormalizada,
+      napAsociada: '',
+      puertoAsignado: '',
+      poste_id: '',
+      posteAsociado: '',
+      napsAsociadas: []
+    }));
+    setTextoBusquedaNap('');
+    setTextoBusquedaPoste('');
+    setTextoBusquedaNapPoste('');
+    setNapsSeleccionadasPosteForm([]);
+    setMostrarDropdownNap(false);
+    setMostrarDropdownPostes(false);
+    setMostrarDropdownNapPoste(false);
   };
 
   const dispositivosFiltrados = dispositivos.filter(d => {
@@ -436,7 +469,8 @@ function Dispositivos() {
     if (!filtroTablaGeneral.trim()) return true;
 
     const texto = filtroTablaGeneral.toLowerCase().trim();
-    const loc = String(d.localidad || '').toLowerCase();
+    const textoNormalizado = texto.replace(/_/g, '-');
+    const loc = formatearLocalidadUI(d.localidad).toLowerCase();
 
     return (d.codigo || '').toLowerCase().includes(texto) ||
            (d.nombre_completo || '').toLowerCase().includes(texto) ||
@@ -444,7 +478,8 @@ function Dispositivos() {
            (d.modelo || '').toLowerCase().includes(texto) ||
            (d.posteAsociado || '').toLowerCase().includes(texto) ||
            (d.napAsociada || '').toLowerCase().includes(texto) ||
-           loc.includes(texto);
+           loc.includes(texto) ||
+           loc.includes(textoNormalizado);
   });
 
   const abrirModalCrear = async () => {
@@ -527,7 +562,7 @@ function Dispositivos() {
     setForm({
       tipo: item.tipo,
       codigo: item.codigo_nap || item.codigo || item.cliente_ref || '',
-      localidad: item.localidad || 'MX-B1',
+      localidad: formatearLocalidadUI(item.localidad),
       poste_id: item.poste_id !== null && item.poste_id !== undefined ? String(item.poste_id) : '',
       posteAsociado: nombrePosteInicial,
       clienteAsociado: item.clienteAsociado || '',
@@ -608,14 +643,15 @@ function Dispositivos() {
     let datosAEnviar = {};
 
     if (form.tipo === 'Clientes') {
-      // Validación estricta de teléfono a 10 dígitos
       const telefonoLimpio = String(form.serie || '').replace(/\D/g, '');
       if (telefonoLimpio.length !== 10) {
         mostrarAlertaFlotante("El número de contacto debe contener exactamente 10 dígitos.", "error");
         return;
       }
 
-      const napSeleccionadaObj = napsDisponiblesBD.find(n => String(n.codigo || '').toLowerCase() === String(form.napAsociada || '').toLowerCase() || String(n.realId) === String(form.napAsociada));
+      const napSeleccionadaObj = napsDisponiblesBD.find(
+        n => String(n.codigo || '').toLowerCase() === String(form.napAsociada || '').toLowerCase() || String(n.realId) === String(form.napAsociada)
+      );
       const idNapFinal = napSeleccionadaObj ? Number(napSeleccionadaObj.realId) : null;
 
       datosAEnviar = {
@@ -650,7 +686,9 @@ function Dispositivos() {
       };
 
     } else if (form.tipo === 'Caja NAP') {
-      const posteSeleccionadoObj = postesDisponiblesBD.find(p => String(p.codigo || '').toLowerCase() === String(form.posteAsociado || '').toLowerCase() || String(p.realId) === String(form.poste_id));
+      const posteSeleccionadoObj = postesDisponiblesBD.find(
+        p => String(p.codigo || '').toLowerCase() === String(form.posteAsociado || '').toLowerCase() || String(p.realId) === String(form.poste_id)
+      );
       const idPosteFinal = posteSeleccionadoObj ? Number(posteSeleccionadoObj.realId) : null;
 
       datosAEnviar = {
@@ -708,6 +746,8 @@ function Dispositivos() {
     }
   };
 
+  const localidadFormActual = formatearLocalidadUI(form.localidad);
+
   const napSeleccionadaObj = napsDisponiblesBD.find(
     n => String(n.codigo || '').toLowerCase() === String(form.napAsociada || '').toLowerCase() || String(n.realId) === String(form.napAsociada)
   );
@@ -729,26 +769,63 @@ function Dispositivos() {
 
   const capacidadTotalNap = napSeleccionadaObj ? Number(napSeleccionadaObj.capacidad_puertos) || 8 : 8;
 
-  const posteAsociadoDetectado = napSeleccionadaObj 
-    ? (napSeleccionadaObj.posteAsociado || postesDisponiblesBD.find(p => String(p.realId) === String(napSeleccionadaObj.poste_id))?.codigo || 'N/A')
+  const posteObjDetectado = napSeleccionadaObj
+    ? postesDisponiblesBD.find(
+        p =>
+          String(p.realId) === String(napSeleccionadaObj.poste_id) ||
+          String(p.codigo || '').toLowerCase() === String(napSeleccionadaObj.posteAsociado || '').toLowerCase()
+      )
+    : null;
+
+  const codigoPosteDetectado = napSeleccionadaObj
+    ? (napSeleccionadaObj.posteAsociado || posteObjDetectado?.codigo || '')
+    : '';
+
+  const localidadPosteDetectado = posteObjDetectado
+    ? formatearLocalidadUI(posteObjDetectado.localidad)
+    : (napSeleccionadaObj ? formatearLocalidadUI(napSeleccionadaObj.localidad) : '');
+
+  const posteAsociadoDetectado = codigoPosteDetectado
+    ? `[${localidadPosteDetectado}] ${codigoPosteDetectado}`
     : 'N/A';
 
+  const napSeleccionadaEtiqueta = napSeleccionadaObj
+    ? `[${formatearLocalidadUI(napSeleccionadaObj.localidad)}] ${napSeleccionadaObj.codigo}`
+    : '';
+
+  const posteSeleccionadoParaNapObj = postesDisponiblesBD.find(
+    p => String(p.realId) === String(form.poste_id) || String(p.codigo || '').toLowerCase() === String(form.posteAsociado || '').toLowerCase()
+  );
+
+  const etiquetaPosteSeleccionadoNap = posteSeleccionadoParaNapObj
+    ? `[${formatearLocalidadUI(posteSeleccionadoParaNapObj.localidad)}] ${posteSeleccionadoParaNapObj.codigo}`
+    : (form.posteAsociado ? `[${localidadFormActual}] ${form.posteAsociado}` : '');
+
+  // Filtrado automático de dropdowns por la Localidad / Barrio seleccionada
   const postesFiltradosDropdown = postesDisponiblesBD.filter(p => {
+    if (formatearLocalidadUI(p.localidad) !== localidadFormActual) return false;
     if (!textoBusquedaPoste.trim()) return true;
-    return (p.codigo || '').toLowerCase().includes(textoBusquedaPoste.toLowerCase().trim());
+    const texto = textoBusquedaPoste.toLowerCase().trim();
+    return (p.codigo || '').toLowerCase().includes(texto) ||
+           formatearLocalidadUI(p.localidad).toLowerCase().includes(texto);
   });
 
   const napsFiltradasDropdown = napsDisponiblesBD.filter(n => {
+    if (formatearLocalidadUI(n.localidad) !== localidadFormActual) return false;
     if (!textoBusquedaNap.trim()) return true;
     const codigo = (n.codigo || '').toLowerCase();
     const poste = (n.posteAsociado || '').toLowerCase();
+    const loc = formatearLocalidadUI(n.localidad).toLowerCase();
     const texto = textoBusquedaNap.toLowerCase().trim();
-    return codigo.includes(texto) || poste.includes(texto);
+    return codigo.includes(texto) || poste.includes(texto) || loc.includes(texto);
   });
 
   const napsFiltradasParaDropdownPoste = napsDisponiblesBD.filter(n => {
-    if (!textoBusquedaNapPoste.trim()) return true;
-    return (n.codigo || '').toLowerCase().includes(textoBusquedaNapPoste.toLowerCase().trim());
+    if (formatearLocalidadUI(n.localidad) !== localidadFormActual) return false;
+    if (!textoBusquedaNapPoste.trim() || textoBusquedaNapPoste === 'No Aplica') return true;
+    const texto = textoBusquedaNapPoste.toLowerCase().trim();
+    return (n.codigo || '').toLowerCase().includes(texto) ||
+           formatearLocalidadUI(n.localidad).toLowerCase().includes(texto);
   });
 
   return (
@@ -910,6 +987,7 @@ function Dispositivos() {
             ) : (
               dispositivosFiltrados.map((item) => {
                 const estadoStr = String(item.estado ?? item.estatus ?? 'ACTIVO').trim().toUpperCase();
+                const locItem = formatearLocalidadUI(item.localidad);
                 
                 const esSuspendido = estadoStr === 'SUSPENDIDO';
                 const esCancelado = estadoStr === 'CANCELADO';
@@ -946,7 +1024,7 @@ function Dispositivos() {
                       </td>
                       <td style={{ padding: '12px 16px' }}>
                         <span style={{ backgroundColor: '#e0f2fe', color: '#0369a1', padding: '3px 8px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: '700' }}>
-                          {item.localidad || 'MX-B1'}
+                          {locItem}
                         </span>
                       </td>
                       <td style={{ padding: '12px 16px' }}>
@@ -991,79 +1069,94 @@ function Dispositivos() {
                                   String(n.codigo || '').trim().toLowerCase() === String(item.napAsociada || '').trim().toLowerCase() ||
                                   String(n.realId) === String(item.id_nap)
                                 );
-                                
-                                const posteFinalDetalle = napDelCliente?.posteAsociado || 
-                                                          postesDisponiblesBD.find(p => String(p.realId) === String(napDelCliente?.poste_id))?.codigo || 
-                                                          item.posteAsociado || 
-                                                          'N/A';
+
+                                const posteObjDetalle = postesDisponiblesBD.find(p =>
+                                  String(p.realId) === String(napDelCliente?.poste_id) ||
+                                  String(p.codigo || '').toLowerCase() === String(napDelCliente?.posteAsociado || item.posteAsociado || '').toLowerCase()
+                                );
+
+                                const posteCodigoDetalle = napDelCliente?.posteAsociado || posteObjDetalle?.codigo || item.posteAsociado || '';
+                                const locNapDetalle = formatearLocalidadUI(napDelCliente?.localidad || item.localidad);
+                                const locPosteDetalle = formatearLocalidadUI(posteObjDetalle?.localidad || napDelCliente?.localidad || item.localidad);
 
                                 return (
                                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
                                     <div><strong>Contacto / Serie:</strong> {item.contacto || item.no_serie || 'N/A'}</div>
-                                    <div><strong>NAP / Puerto:</strong> {item.napAsociada ? `${item.napAsociada} (P. ${item.puertoAsignado || 'N/A'})` : 'N/A'}</div>
-                                    <div><strong>Poste Asoc.:</strong> {posteFinalDetalle}</div>
+                                    <div><strong>NAP / Puerto:</strong> {item.napAsociada ? `[${locNapDetalle}] ${item.napAsociada} (P. ${item.puertoAsignado || 'N/A'})` : 'N/A'}</div>
+                                    <div><strong>Poste Asoc.:</strong> {posteCodigoDetalle ? `[${locPosteDetalle}] ${posteCodigoDetalle}` : 'N/A'}</div>
                                   </div>
                                 );
                               })()
                             ) : item.tipo === 'ONU' ? (
-                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px' }}>
+                              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
+                                <div><strong>Localidad:</strong> [{locItem}]</div>
                                 <div><strong>N° Serie ONU:</strong> {item.no_serie || item.contacto || 'N/A'}</div>
                                 <div><strong>Modelo:</strong> {item.modelo || 'N/A'}</div>
                                 <div><strong>Instalación:</strong> {item.fecha_instalacion ? item.fecha_instalacion.split('T')[0] : 'S/N'}</div>
                               </div>
                             ) : item.tipo === 'Caja NAP' ? (
-                              <div>
-                                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '12px' }}>
-                                  <div><strong>Poste Asoc.:</strong> {item.posteAsociado || 'N/A'}</div>
-                                  <div><strong>N° Serie:</strong> {item.no_serie || 'N/A'}</div>
-                                  <div><strong>Puertos Usados:</strong> {item.puertos_usados} / {item.capacidad_puertos}</div>
-                                </div>
-                                <div style={{ marginTop: '8px', padding: '12px', backgroundColor: '#fff', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
-                                  <strong style={{ display: 'block', marginBottom: '10px', color: '#0369a1', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
-                                    CLIENTES CONECTADOS
-                                  </strong>
-                                  {item.clientesEnNap && item.clientesEnNap.length > 0 ? (
-                                    <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-                                      {item.clientesEnNap.map((cli, idxCli) => {
-                                        const cliEstatusStr = String(cli.estatus ?? 'ACTIVO').trim().toUpperCase();
-                                        const cliEsActivo = cliEstatusStr === 'ACTIVO' || cliEstatusStr === 'TRUE';
+                              (() => {
+                                const posteObjNap = postesDisponiblesBD.find(p =>
+                                  String(p.realId) === String(item.poste_id) ||
+                                  String(p.codigo || '').toLowerCase() === String(item.posteAsociado || '').toLowerCase()
+                                );
+                                const locPosteNap = formatearLocalidadUI(posteObjNap?.localidad || item.localidad);
 
-                                        return (
-                                          <div key={`cli-nap-lista-${idxCli}`} style={{ backgroundColor: '#f8fafc', padding: '10px 14px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8rem', display: 'flex', flexDirection: 'column', gap: '4px' }}>
-                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px' }}>
-                                              <div>
-                                                <span style={{ fontWeight: '700', color: '#475569' }}>Nombre del cliente:</span>{' '}
-                                                <span style={{ color: '#0f172a', fontWeight: '700' }}>{cli.nombre_completo || 'Sin nombre'}</span>
-                                              </div>
-                                            </div>
-                                            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginTop: '2px' }}>
-                                              <div>
-                                                <span style={{ fontWeight: '700', color: '#475569' }}>Puerto Ocupado:</span>{' '}
-                                                <span style={{ color: '#0369a1', fontWeight: '700' }}>{cli.puerto_asignado || 'N/A'}</span>
-                                              </div>
-                                              <div>
-                                                <span style={{ fontWeight: '700', color: '#475569' }}>Estado:</span>{' '}
-                                                <span style={{ color: cliEsActivo ? '#16a34a' : '#dc2626', fontWeight: '600' }}>
-                                                  {cliEsActivo ? 'ACTIVO' : 'INACTIVO'}
-                                                </span>
-                                              </div>
-                                            </div>
-                                          </div>
-                                        );
-                                      })}
+                                return (
+                                  <div>
+                                    <div style={{ display: 'grid', gridTemplateColumns: 'repeat(3, 1fr)', gap: '12px', marginBottom: '12px' }}>
+                                      <div><strong>Poste Asoc.:</strong> {item.posteAsociado ? `[${locPosteNap}] ${item.posteAsociado}` : 'N/A'}</div>
+                                      <div><strong>N° Serie:</strong> {item.no_serie || 'N/A'}</div>
+                                      <div><strong>Puertos Usados:</strong> {item.puertos_usados} / {item.capacidad_puertos}</div>
                                     </div>
-                                  ) : (
-                                    <span style={{ color: '#94a3b8', fontSize: '0.78rem' }}>No hay clientes conectados a esta caja NAP todavía.</span>
-                                  )}
-                                </div>
-                              </div>
+                                    <div style={{ marginTop: '8px', padding: '12px', backgroundColor: '#fff', borderRadius: '6px', border: '1px solid #e2e8f0' }}>
+                                      <strong style={{ display: 'block', marginBottom: '10px', color: '#0369a1', fontSize: '0.85rem', textTransform: 'uppercase', letterSpacing: '0.5px' }}>
+                                        CLIENTES CONECTADOS
+                                      </strong>
+                                      {item.clientesEnNap && item.clientesEnNap.length > 0 ? (
+                                        <div style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+                                          {item.clientesEnNap.map((cli, idxCli) => {
+                                            const cliEstatusStr = String(cli.estado ?? cli.estatus ?? 'ACTIVO').trim().toUpperCase();
+                                            const cliEsActivo = cliEstatusStr === 'ACTIVO' || cliEstatusStr === 'TRUE';
+
+                                            return (
+                                              <div key={`cli-nap-lista-${idxCli}`} style={{ backgroundColor: '#f8fafc', padding: '10px 14px', borderRadius: '6px', border: '1px solid #e2e8f0', fontSize: '0.8rem', display: 'flex', flexDirection: 'column', gap: '4px' }}>
+                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr', gap: '16px' }}>
+                                                  <div>
+                                                    <span style={{ fontWeight: '700', color: '#475569' }}>Nombre del cliente:</span>{' '}
+                                                    <span style={{ color: '#0f172a', fontWeight: '700' }}>[{formatearLocalidadUI(cli.localidad)}] {cli.nombre_completo || 'Sin nombre'}</span>
+                                                  </div>
+                                                </div>
+                                                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '16px', marginTop: '2px' }}>
+                                                  <div>
+                                                    <span style={{ fontWeight: '700', color: '#475569' }}>Puerto Ocupado:</span>{' '}
+                                                    <span style={{ color: '#0369a1', fontWeight: '700' }}>{cli.puerto_asignado || cli.puertoAsignado || 'N/A'}</span>
+                                                  </div>
+                                                  <div>
+                                                    <span style={{ fontWeight: '700', color: '#475569' }}>Estado:</span>{' '}
+                                                    <span style={{ color: cliEsActivo ? '#16a34a' : '#dc2626', fontWeight: '600' }}>
+                                                      {cliEsActivo ? 'ACTIVO' : cliEstatusStr}
+                                                    </span>
+                                                  </div>
+                                                </div>
+                                              </div>
+                                            );
+                                          })}
+                                        </div>
+                                      ) : (
+                                        <span style={{ color: '#94a3b8', fontSize: '0.78rem' }}>No hay clientes conectados a esta caja NAP todavía.</span>
+                                      )}
+                                    </div>
+                                  </div>
+                                );
+                              })()
                             ) : (
                               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                                 <div>
                                   <strong>Cajas NAP en este poste:</strong> {
                                     napsDisponiblesBD
                                       .filter(n => String(n.poste_id) === String(item.realId) || String(n.posteAsociado || '').toLowerCase() === String(item.codigo || '').toLowerCase())
-                                      .map(n => n.codigo)
+                                      .map(n => `[${formatearLocalidadUI(n.localidad)}] ${n.codigo}`)
                                       .join(', ') || 'Ninguna'
                                   }
                                 </div>
@@ -1124,8 +1217,8 @@ function Dispositivos() {
                   Localidad / Barrio:
                 </label>
                 <select 
-                  value={form.localidad}
-                  onChange={(e) => setForm({...form, localidad: e.target.value})}
+                  value={localidadFormActual}
+                  onChange={(e) => handleCambioLocalidadForm(e.target.value)}
                   style={{ width: '100%', padding: '9px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#fff', fontWeight: '600' }}
                 >
                   {CATALOGO_LOCALIDADES.map((loc) => (
@@ -1221,10 +1314,12 @@ function Dispositivos() {
                     
                     <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '12px' }}>
                       <div style={{ position: 'relative' }} ref={dropdownNapRef}>
-                        <label style={{ fontSize: '0.75rem', color: '#64748b', display: 'block', marginBottom: '4px', fontWeight: '700' }}>Caja NAP Origen:</label>
+                        <label style={{ fontSize: '0.75rem', color: '#64748b', display: 'block', marginBottom: '4px', fontWeight: '700' }}>
+                          Caja NAP Origen ({localidadFormActual}):
+                        </label>
                         <input 
                           type="text"
-                          placeholder="Escribe para buscar Caja NAP..."
+                          placeholder={`Buscar NAP en ${localidadFormActual}...`}
                           value={textoBusquedaNap}
                           onChange={(e) => {
                             setTextoBusquedaNap(e.target.value);
@@ -1252,12 +1347,15 @@ function Dispositivos() {
                             boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'
                           }}>
                             {napsFiltradasDropdown.length === 0 ? (
-                              <div style={{ padding: '8px 12px', fontSize: '0.78rem', color: '#94a3b8' }}>No se encontraron Cajas NAP</div>
+                              <div style={{ padding: '8px 12px', fontSize: '0.78rem', color: '#94a3b8' }}>
+                                No se encontraron Cajas NAP en {localidadFormActual}
+                              </div>
                             ) : (
                               napsFiltradasDropdown.map((nap, idx) => {
                                 const capacidadTotal = Number(nap.capacidad_puertos) || 8;
                                 const usados = Number(nap.puertos_usados) || 0;
                                 const libres = Math.max(0, capacidadTotal - usados);
+                                const locNap = formatearLocalidadUI(nap.localidad);
 
                                 return (
                                   <div
@@ -1275,7 +1373,7 @@ function Dispositivos() {
                                     onMouseEnter={(e) => { e.currentTarget.style.backgroundColor = '#f1f5f9'; }}
                                     onMouseLeave={(e) => { e.currentTarget.style.backgroundColor = '#ffffff'; }}
                                   >
-                                    {nap.codigo} {nap.posteAsociado ? `(Poste: ${nap.posteAsociado})` : ''} — Puertos usados: {usados}/{capacidadTotal} (Libres: {libres})
+                                    [{locNap}] {nap.codigo} {nap.posteAsociado ? `(Poste: [${locNap}] ${nap.posteAsociado})` : ''} — Puertos usados: {usados}/{capacidadTotal} (Libres: {libres})
                                   </div>
                                 );
                               })
@@ -1326,10 +1424,15 @@ function Dispositivos() {
                       </div>
                     </div>
 
-                    <div style={{ paddingTop: '4px', borderTop: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                    <div style={{ paddingTop: '6px', borderTop: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '8px' }}>
                       <span style={{ color: '#1e3a8a', fontWeight: '700', fontSize: '0.8rem' }}>
-                        Poste Asociado: <span style={{ fontWeight: '400', color: '#334155' }}>{posteAsociadoDetectado}</span>
+                        Poste Asociado: <span style={{ fontWeight: '600', color: '#334155' }}>{posteAsociadoDetectado}</span>
                       </span>
+                      {napSeleccionadaEtiqueta && (
+                        <span style={{ color: '#0369a1', fontWeight: '700', fontSize: '0.78rem', backgroundColor: '#e0f2fe', padding: '2px 8px', borderRadius: '4px' }}>
+                          NAP: {napSeleccionadaEtiqueta}
+                        </span>
+                      )}
                     </div>
 
                   </div>
@@ -1360,14 +1463,19 @@ function Dispositivos() {
                       />
                     </div>
                   </div>
-                  <div>
-                    <label style={{ fontSize: '0.75rem', color: '#64748b', display: 'block', marginBottom: '4px' }}>Fecha de Instalación:</label>
-                    <input 
-                      type="date" 
-                      value={form.fecha_instalacion}
-                      onChange={(e) => setForm({...form, fecha_instalacion: e.target.value})}
-                      style={{ width: '100%', padding: '9px', borderRadius: '6px', border: '1px solid #cbd5e1', boxSizing: 'border-box' }}
-                    />
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr auto', gap: '12px', alignItems: 'end' }}>
+                    <div>
+                      <label style={{ fontSize: '0.75rem', color: '#64748b', display: 'block', marginBottom: '4px' }}>Fecha de Instalación:</label>
+                      <input 
+                        type="date" 
+                        value={form.fecha_instalacion}
+                        onChange={(e) => setForm({...form, fecha_instalacion: e.target.value})}
+                        style={{ width: '100%', padding: '9px', borderRadius: '6px', border: '1px solid #cbd5e1', boxSizing: 'border-box' }}
+                      />
+                    </div>
+                    <div style={{ padding: '9px 12px', borderRadius: '6px', backgroundColor: '#e0f2fe', color: '#0369a1', fontSize: '0.78rem', fontWeight: '700' }}>
+                      Zona: [{localidadFormActual}]
+                    </div>
                   </div>
                 </div>
               )}
@@ -1411,12 +1519,12 @@ function Dispositivos() {
 
                   <div style={{ border: '1px solid #cbd5e1', padding: '10px', borderRadius: '6px', backgroundColor: '#f8fafc', position: 'relative' }} ref={dropdownPosteRef}>
                     <label style={{ fontSize: '0.75rem', color: '#64748b', display: 'block', marginBottom: '4px', fontWeight: '700' }}>
-                      Asociar Poste a esta Caja NAP:
+                      Asociar Poste a esta Caja NAP ({localidadFormActual}):
                     </label>
 
                     <input 
                       type="text"
-                      placeholder="Escribe para buscar poste..."
+                      placeholder={`Buscar poste en ${localidadFormActual}...`}
                       value={textoBusquedaPoste}
                       onChange={(e) => {
                         setTextoBusquedaPoste(e.target.value);
@@ -1428,6 +1536,14 @@ function Dispositivos() {
                       onFocus={() => setMostrarDropdownPostes(true)}
                       style={{ width: '100%', padding: '8px 10px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.8rem', boxSizing: 'border-box', backgroundColor: '#fff' }}
                     />
+
+                    {etiquetaPosteSeleccionadoNap && (
+                      <div style={{ marginTop: '8px', paddingTop: '6px', borderTop: '1px solid #e2e8f0', fontSize: '0.8rem' }}>
+                        <span style={{ color: '#1e3a8a', fontWeight: '700' }}>
+                          Poste Seleccionado: <span style={{ fontWeight: '600', color: '#334155' }}>{etiquetaPosteSeleccionadoNap}</span>
+                        </span>
+                      </div>
+                    )}
 
                     {mostrarDropdownPostes && (
                       <div style={{
@@ -1444,7 +1560,9 @@ function Dispositivos() {
                         boxShadow: '0 4px 6px -1px rgba(0,0,0,0.1)'
                       }}>
                         {postesFiltradosDropdown.length === 0 ? (
-                          <div style={{ padding: '8px 12px', fontSize: '0.78rem', color: '#94a3b8' }}>No se encontraron postes</div>
+                          <div style={{ padding: '8px 12px', fontSize: '0.78rem', color: '#94a3b8' }}>
+                            No se encontraron postes en {localidadFormActual}
+                          </div>
                         ) : (
                           postesFiltradosDropdown.map((p, idx) => {
                             const napAsociadaAlPoste = napsDisponiblesBD.find(n => 
@@ -1458,6 +1576,8 @@ function Dispositivos() {
 
                             const estaOcupado = napAsociadaAlPoste && !esLaMismaNap;
                             const codigoNapOcupante = napAsociadaAlPoste ? (napAsociadaAlPoste.codigo || napAsociadaAlPoste.codigo_nap) : '';
+                            const locPoste = formatearLocalidadUI(p.localidad);
+                            const locNapOcupante = napAsociadaAlPoste ? formatearLocalidadUI(napAsociadaAlPoste.localidad) : locPoste;
 
                             return (
                               <div
@@ -1485,8 +1605,8 @@ function Dispositivos() {
                                 }}
                               >
                                 {estaOcupado 
-                                  ? `${p.codigo} — Ocupado por NAP: ${codigoNapOcupante}` 
-                                  : `${p.codigo} — Disponible`}
+                                  ? `[${locPoste}] ${p.codigo} — Ocupado por NAP: [${locNapOcupante}] ${codigoNapOcupante}` 
+                                  : `[${locPoste}] ${p.codigo} — Disponible`}
                               </div>
                             );
                           })
@@ -1511,14 +1631,14 @@ function Dispositivos() {
 
                   <div style={{ border: '1px solid #cbd5e1', padding: '12px', borderRadius: '6px', backgroundColor: '#f8fafc', position: 'relative' }} ref={dropdownNapPosteRef}>
                     <label style={{ fontSize: '0.75rem', color: '#0369a1', fontWeight: '700', textTransform: 'uppercase', display: 'block', marginBottom: '4px' }}>
-                      Caja NAP instalada en este Poste (Máximo 1):
+                      Caja NAP instalada en este Poste — {localidadFormActual} (Máximo 1):
                     </label>
 
                     {napsSeleccionadasPosteForm.length === 0 ? (
                       <>
                         <input 
                           type="text"
-                          placeholder="Escribe para buscar Caja NAP..."
+                          placeholder={`Buscar Caja NAP en ${localidadFormActual}...`}
                           value={textoBusquedaNapPoste}
                           onChange={(e) => {
                             setTextoBusquedaNapPoste(e.target.value);
@@ -1562,7 +1682,9 @@ function Dispositivos() {
                             </div>
 
                             {napsFiltradasParaDropdownPoste.length === 0 ? (
-                              <div style={{ padding: '8px 12px', fontSize: '0.78rem', color: '#94a3b8' }}>No se encontraron Cajas NAP</div>
+                              <div style={{ padding: '8px 12px', fontSize: '0.78rem', color: '#94a3b8' }}>
+                                No se encontraron Cajas NAP en {localidadFormActual}
+                              </div>
                             ) : (
                               napsFiltradasParaDropdownPoste.map((napItem, idxN) => {
                                 const posteActualId = elementoSeleccionado ? String(elementoSeleccionado.realId) : '';
@@ -1574,6 +1696,7 @@ function Dispositivos() {
                                                          (posteAsignadoNapCodigo && codigoPosteActualForm && posteAsignadoNapCodigo === codigoPosteActualForm);
 
                                 const estaAsignadaAOtro = napItem.posteAsociado && !yaEstaEnEstePoste;
+                                const locNap = formatearLocalidadUI(napItem.localidad);
 
                                 return (
                                   <div
@@ -1596,8 +1719,8 @@ function Dispositivos() {
                                     }}
                                   >
                                     {estaAsignadaAOtro 
-                                      ? `${napItem.codigo} — Ocupada por POSTE: ${napItem.posteAsociado}` 
-                                      : `${napItem.codigo} — Disponible`}
+                                      ? `[${locNap}] ${napItem.codigo} — Ocupada por POSTE: [${locNap}] ${napItem.posteAsociado}` 
+                                      : `[${locNap}] ${napItem.codigo} — Disponible`}
                                   </div>
                                 );
                               })
@@ -1611,7 +1734,9 @@ function Dispositivos() {
                       {napsSeleccionadasPosteForm.length > 0 ? (
                         napsSeleccionadasPosteForm.map((napSel, iSel) => (
                           <div key={`nap-sel-${iSel}`} style={{ backgroundColor: '#ffffff', padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', display: 'flex', justifyContent: 'space-between', alignItems: 'center', fontSize: '0.85rem' }}>
-                            <span style={{ fontWeight: '700', color: '#1e293b' }}>{napSel.codigo}</span>
+                            <span style={{ fontWeight: '700', color: '#1e293b' }}>
+                              [{formatearLocalidadUI(napSel.localidad)}] {napSel.codigo}
+                            </span>
                             <button
                               type="button"
                               onClick={() => {
