@@ -648,6 +648,36 @@ const eliminarReporte = async (req, res) => {
   }
 };
 
+const obtenerTareasUrgentesHoy = async (req, res) => {
+  try {
+    const hoyInicio = new Date();
+    hoyInicio.setHours(0, 0, 0, 0);
+
+    const hoyFin = new Date();
+    hoyFin.setHours(23, 59, 59, 999);
+
+    const tareasUrgentes = await prisma.reportes.findMany({
+      where: {
+        estatus: true, // Tareas activas/pendientes
+        prioridad: { in: ['Urgente', 'URGENTE', 'Alta', 'ALTA'] },
+        fecha_reporte: {
+          gte: hoyInicio,
+          lte: hoyFin
+        }
+      },
+      include: {
+        cliente: true,
+        nap: true,
+        poste: true
+      }
+    });
+
+    res.json(tareasUrgentes);
+  } catch (error) {
+    res.status(500).json({ error: 'Error al obtener tareas urgentes', detalle: error.message });
+  }
+};
+
 
 module.exports = {
   obtenerPostes,
