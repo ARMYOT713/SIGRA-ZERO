@@ -810,7 +810,7 @@ function MapaRed() {
                 { id: 'POSTE', label: 'Poste' },
                 { id: 'NAP', label: 'Nap' },
                 { id: 'CLIENTE', label: 'Cliente' },
-                { id: 'ONU', label: 'Onu' }
+                { id: 'ONU', label: 'ONU' }
               ].map((item) => (
                 <button
                   key={item.id}
