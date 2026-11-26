@@ -100,7 +100,7 @@ function GestionKMZ() {
       
       if (resPostes.ok) {
         const data = await resPostes.json().catch(() => ([]));
-        const lista = Array.isArray(data.data) ? data.data : (Array.isArray(data) ? data.postes || data : []);
+        const lista = Array.isArray(data) ? data : (Array.isArray(data.data) ? data.data : (data.postes || []));
         lista.forEach(item => {
           const cod = item.codigo || item.nombre;
           if (cod) codigosExistentes.add(cod.trim().toLowerCase());
@@ -109,7 +109,7 @@ function GestionKMZ() {
 
       if (resNaps.ok) {
         const data = await resNaps.json().catch(() => ([]));
-        const lista = Array.isArray(data.data) ? data.data : (Array.isArray(data) ? data.naps || data : []);
+        const lista = Array.isArray(data) ? data : (Array.isArray(data.data) ? data.data : (data.naps || []));
         lista.forEach(item => {
           const cod = item.codigo_nap || item.codigo || item.nombre;
           if (cod) codigosExistentes.add(cod.trim().toLowerCase());
@@ -118,7 +118,7 @@ function GestionKMZ() {
 
       if (resClientes.ok) {
         const data = await resClientes.json().catch(() => ([]));
-        const lista = Array.isArray(data.data) ? data.data : (Array.isArray(data) ? data.clientes || data : []);
+        const lista = Array.isArray(data) ? data : (Array.isArray(data.data) ? data.data : (data.clientes || []));
         lista.forEach(item => {
           const cod = item.cliente_ref || item.codigo || item.nombre;
           if (cod) codigosExistentes.add(cod.trim().toLowerCase());
@@ -318,7 +318,7 @@ function GestionKMZ() {
     }
   };
 
-  // --- LÓGICA DE EXPORTACIÓN (Exclusivamente Postes y NAPs) ---
+  // --- LÓGICA DE EXPORTACIÓN (Postes, NAPs y ONUs) ---
   const cargarElementosParaExportar = async () => {
     setCargandoExportacion(true);
     setMensajeExportacion('');
@@ -331,12 +331,13 @@ function GestionKMZ() {
 
       const headers = { 'Authorization': `Bearer ${token}` };
 
-      const [resPostes, resNaps] = await Promise.all([
+      const [resPostes, resNaps, resClientes] = await Promise.all([
         fetch('https://sigra-zero.onrender.com/api/red/postes', { headers }),
-        fetch('https://sigra-zero.onrender.com/api/red/naps', { headers })
+        fetch('https://sigra-zero.onrender.com/api/red/naps', { headers }),
+        fetch('https://sigra-zero.onrender.com/api/red/clientes', { headers })
       ]);
 
-      if (resPostes.status === 401 || resNaps.status === 401) {
+      if (resPostes.status === 401 || resNaps.status === 401 || resClientes.status === 401) {
         navigate('/login');
         return;
       }
@@ -345,7 +346,7 @@ function GestionKMZ() {
 
       if (resPostes.ok) {
         const dataPostes = await resPostes.json();
-        const listaPostes = Array.isArray(dataPostes.data) ? dataPostes.data : (Array.isArray(dataPostes) ? dataPostes.postes || dataPostes : []);
+        const listaPostes = Array.isArray(dataPostes) ? dataPostes : (Array.isArray(dataPostes.data) ? dataPostes.data : (dataPostes.postes || []));
         todosLosElementos.push(...listaPostes.map(item => ({
           ...item,
           realId: item.id || item.poste_id || item.id_poste || item._id,
@@ -357,13 +358,31 @@ function GestionKMZ() {
 
       if (resNaps.ok) {
         const dataNaps = await resNaps.json();
-        const listaNaps = Array.isArray(dataNaps.data) ? dataNaps.data : (Array.isArray(dataNaps) ? dataNaps.naps || dataNaps : []);
+        const listaNaps = Array.isArray(dataNaps) ? dataNaps : (Array.isArray(dataNaps.data) ? dataNaps.data : (dataNaps.naps || []));
         todosLosElementos.push(...listaNaps.map(item => ({
           ...item,
           realId: item.id || item.nap_id || item.id_nap || item._id,
           codigo: item.codigo_nap || item.codigo || item.nombre,
           localidad: formatearLocalidadVista(item.localidad),
           tipoElemento: 'NAP'
+        })));
+      }
+
+      if (resClientes.ok) {
+        const dataClientes = await resClientes.json();
+        const listaClientesCruda = Array.isArray(dataClientes) ? dataClientes : (Array.isArray(dataClientes.data) ? dataClientes.data : (dataClientes.clientes || []));
+        const listaOnus = listaClientesCruda.filter(item => {
+          const tipoUpper = (item.tipo || '').toUpperCase();
+          const codigoUpper = (item.codigo || item.cliente_ref || item.nombre || '').toUpperCase();
+          return tipoUpper === 'ONU' || item.es_onu === true || codigoUpper.includes('ONU');
+        });
+
+        todosLosElementos.push(...listaOnus.map(item => ({
+          ...item,
+          realId: item.id || item.cliente_id || item.id_cliente || item._id,
+          codigo: item.cliente_ref || item.codigo || item.nombre,
+          localidad: formatearLocalidadVista(item.localidad),
+          tipoElemento: 'ONU'
         })));
       }
 
@@ -377,8 +396,11 @@ function GestionKMZ() {
   };
 
   const irAlMapaGeolocalizacion = (el) => {
-    const tipoParam = el.tipoElemento === 'NAP' ? 'nap' : 'poste';
-    const idBuscado = el.realId || el.id || el.poste_id || el.id_nap;
+    let tipoParam = 'poste';
+    if (el.tipoElemento === 'NAP') tipoParam = 'nap';
+    else if (el.tipoElemento === 'ONU') tipoParam = 'onu';
+
+    const idBuscado = el.realId || el.id || el.poste_id || el.id_nap || el.id_cliente;
     const lat = el.latitud ?? el.lat;
     const lng = el.longitud ?? el.lng;
 
@@ -396,6 +418,7 @@ function GestionKMZ() {
   const elementosTablaExportar = elementosExportar.filter(el => {
     if (filtroTipoExportacion === 'POSTES' && el.tipoElemento !== 'POSTE') return false;
     if (filtroTipoExportacion === 'NAP' && el.tipoElemento !== 'NAP') return false;
+    if (filtroTipoExportacion === 'ONUS' && el.tipoElemento !== 'ONU') return false;
 
     if (!filtroBusquedaExportacion.trim()) return true;
 
@@ -635,7 +658,7 @@ function GestionKMZ() {
                 <span style={{ fontSize: '0.8rem', fontWeight: '700', color: '#475569' }}>Buscador:</span>
                 <input 
                   type="text"
-                  placeholder="Buscar Poste o NAP por Código o Localidad (ej. MX-B1, CM, BI, YDJ)..."
+                  placeholder="Buscar Poste, NAP u ONU por Código o Localidad (ej. MX-B1, CM, BI, YDJ)..."
                   value={filtroBusquedaExportacion}
                   onChange={(e) => setFiltroBusquedaExportacion(e.target.value)}
                   style={{
@@ -659,13 +682,14 @@ function GestionKMZ() {
                 )}
               </div>
 
-              {/* Botones de Filtro: TODOS, POSTES, NAP */}
+              {/* Botones de Filtro: TODOS, POSTES, NAP, ONUS */}
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '16px', flexWrap: 'wrap', gap: '12px' }}>
                 <div style={{ display: 'flex', gap: '8px' }}>
                   {[
                     { id: 'TODOS', label: 'TODOS' },
                     { id: 'POSTES', label: 'POSTES' },
-                    { id: 'NAP', label: 'NAP' }
+                    { id: 'NAP', label: 'NAP' },
+                    { id: 'ONUS', label: 'ONUS' }
                   ].map((tab) => (
                     <button
                       key={tab.id}
@@ -705,7 +729,7 @@ function GestionKMZ() {
                         const locInfo = CATALOGO_LOCALIDADES.find(l => l.codigo === locCodigo);
 
                         return (
-                          <tr key={index} style={{ borderBottom: '1px solid #f1f5f9' }}>
+                          <tr key={`${el.tipoElemento}-${el.realId || index}`} style={{ borderBottom: '1px solid #f1f5f9' }}>
                             <td style={{ padding: '12px 16px', fontWeight: '600', color: '#0f172a' }}>
                               {el.codigo || el.nombre}
                             </td>
@@ -758,7 +782,7 @@ function GestionKMZ() {
                     ) : (
                       <tr>
                         <td colSpan="5" style={{ padding: '24px', textAlign: 'center', color: '#64748b' }}>
-                          No se encontraron Postes o Cajas NAP que coincidan con la búsqueda.
+                          No se encontraron Postes, Cajas NAP u ONUs que coincidan con la búsqueda.
                         </td>
                       </tr>
                     )}
