@@ -149,34 +149,93 @@ function Layout() {
             width: "210px",
             flexShrink: 0,
             backgroundColor: "#05070a",
-            padding: "20px 0",
+            padding: "20px 0 12px 0",
             display: "flex",
             flexDirection: "column",
-            gap: "4px",
+            justifyContent: "space-between",
           }}
         >
-          {menuItems.map((item) => (
-            <NavLink
-              key={item.to}
-              to={item.to}
-              style={({ isActive }) => ({
+          {/* NAVEGACIÓN PRINCIPAL */}
+          <div style={{ display: "flex", flexDirection: "column", gap: "4px" }}>
+            {menuItems.map((item) => (
+              <NavLink
+                key={item.to}
+                to={item.to}
+                style={({ isActive }) => ({
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "space-between",
+                  padding: "12px 20px",
+                  textDecoration: "none",
+                  fontWeight: "700",
+                  fontSize: "0.8rem",
+                  letterSpacing: "0.5px",
+                  color: isActive ? "#10b981" : "#ffffff",
+                  backgroundColor: isActive ? "#18222c" : "transparent",
+                  borderLeft: isActive ? "4px solid #10b981" : "4px solid transparent",
+                  transition: "all 0.15s ease",
+                })}
+              >
+                <span>{item.label}</span>
+              </NavLink>
+            ))}
+          </div>
+
+          {/* ENLACE SUTIL AL MANUAL DE USUARIO (ANCLADO ABAJO) */}
+          <div
+            style={{
+              marginTop: "auto",
+              paddingTop: "10px",
+              borderTop: "1px solid #1e293b",
+              margin: "0 14px",
+            }}
+          >
+            <a
+              href="/Manual_Usuario_SIGRA.pdf"
+              target="_blank"
+              rel="noopener noreferrer"
+              title="Abrir Manual de Usuario en PDF"
+              style={{
                 display: "flex",
                 alignItems: "center",
-                justifyContent: "space-between",
-                padding: "12px 20px",
+                gap: "8px",
+                padding: "10px 8px",
                 textDecoration: "none",
-                fontWeight: "700",
-                fontSize: "0.8rem",
-                letterSpacing: "0.5px",
-                color: isActive ? "#10b981" : "#ffffff",
-                backgroundColor: isActive ? "#18222c" : "transparent",
-                borderLeft: isActive ? "4px solid #10b981" : "4px solid transparent",
+                fontWeight: "600",
+                fontSize: "0.74rem",
+                letterSpacing: "0.6px",
+                color: "#94a3b8",
+                borderRadius: "4px",
                 transition: "all 0.15s ease",
-              })}
+              }}
+              onMouseOver={(e) => {
+                e.currentTarget.style.color = "#10b981";
+                e.currentTarget.style.backgroundColor = "#111827";
+              }}
+              onMouseOut={(e) => {
+                e.currentTarget.style.color = "#94a3b8";
+                e.currentTarget.style.backgroundColor = "transparent";
+              }}
             >
-              <span>{item.label}</span>
-            </NavLink>
-          ))}
+              <svg
+                width="14"
+                height="14"
+                viewBox="0 0 24 24"
+                fill="none"
+                stroke="currentColor"
+                strokeWidth="2"
+                strokeLinecap="round"
+                strokeLinejoin="round"
+                style={{ flexShrink: 0 }}
+              >
+                <path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8z" />
+                <polyline points="14 2 14 8 20 8" />
+                <line x1="16" y1="13" x2="8" y2="13" />
+                <line x1="16" y1="17" x2="8" y2="17" />
+              </svg>
+              <span>MANUAL DE USUARIO</span>
+            </a>
+          </div>
         </aside>
 
         {/* COLUMNA DERECHA: VISTA PRINCIPAL + FOOTER GLOBAL */}
