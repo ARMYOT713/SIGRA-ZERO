@@ -541,7 +541,7 @@ function ReporteFallas() {
 
         const pdfBlob = await html2pdf()
           .set({
-            margin: [8, 10, 8, 10], 
+            margin: [8, 10, 12, 10],
             filename: `${tituloPDF}.pdf`,
             image: { type: "jpeg", quality: 0.98 },
             html2canvas: { scale: 2, useCORS: true, backgroundColor: "#ffffff" },
@@ -552,7 +552,24 @@ function ReporteFallas() {
           .toPdf()
           .get("pdf")
           .then((pdf) => {
-            pdf.setProperties({ title: tituloPDF }); 
+            pdf.setProperties({ title: tituloPDF });
+
+            const totalPaginas = pdf.internal.getNumberOfPages();
+            const anchoPagina = pdf.internal.pageSize.getWidth();
+            const altoPagina = pdf.internal.pageSize.getHeight();
+
+            for (let i = 1; i <= totalPaginas; i++) {
+              pdf.setPage(i);
+              pdf.setFont("helvetica", "normal");
+              pdf.setFontSize(8);
+              pdf.setTextColor(148, 163, 184);
+              pdf.text(
+                "© 2026 SIGRA - WinfoRed. Todos los derechos reservados. · Desarrollado por Carolina Garcia.",
+                anchoPagina / 2,
+                altoPagina - 6,
+                { align: "center" }
+              );
+            }
           })
           .outputPdf("blob"); 
 
