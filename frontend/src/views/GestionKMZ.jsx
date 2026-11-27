@@ -647,10 +647,10 @@ function GestionKMZ() {
                   {guardando ? 'Guardando Dispositivo...' : 'Guardar Dispositivo'}
                 </button>
 
-                <button
+                   <button
                   onClick={limpiarSeleccion}
                   style={{
-                    backgroundColor: '#64748b',
+                    backgroundColor: '#dc2626',
                     color: '#ffffff',
                     border: 'none',
                     padding: '10px 20px',
@@ -660,7 +660,7 @@ function GestionKMZ() {
                     cursor: 'pointer'
                   }}
                 >
-                  Cancelar carga
+                  Eliminar
                 </button>
               </div>
             </div>
