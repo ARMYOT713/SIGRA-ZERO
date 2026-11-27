@@ -587,14 +587,6 @@ function GestionKMZ() {
                     ))}
                   </select>
                 </div>
-
-                <input
-                  type="text"
-                  placeholder="Filtrar elementos leídos..."
-                  value={filtroBusquedaImportacion}
-                  onChange={(e) => setFiltroBusquedaImportacion(e.target.value)}
-                  style={{ padding: '7px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', fontSize: '0.82rem', width: '240px' }}
-                />
               </div>
 
               <table style={{ width: '100%', borderCollapse: 'collapse', backgroundColor: '#fff', borderRadius: '8px', overflow: 'hidden', border: '1px solid #e2e8f0' }}>
