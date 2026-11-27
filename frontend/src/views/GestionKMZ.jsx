@@ -1,4 +1,4 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import JSZip from 'jszip';
 
@@ -38,6 +38,23 @@ function GestionKMZ() {
   const fileInputRef = useRef(null);
   const navigate = useNavigate();
 
+  // Ocultar automáticamente los avisos después de 5 segundos
+  useEffect(() => {
+    if (!mensaje) return;
+    const temporizador = setTimeout(() => {
+      setMensaje('');
+    }, 5000);
+    return () => clearTimeout(temporizador);
+  }, [mensaje]);
+
+  useEffect(() => {
+    if (!mensajeExportacion) return;
+    const temporizador = setTimeout(() => {
+      setMensajeExportacion('');
+    }, 5000);
+    return () => clearTimeout(temporizador);
+  }, [mensajeExportacion]);
+
   const formatearLocalidadVista = (loc) => {
     if (!loc) return 'MX-B1';
     return String(loc).trim().toUpperCase().replace(/_/g, '-');
@@ -53,10 +70,6 @@ function GestionKMZ() {
   const cambiarLocalidadTodoElLote = (nuevaLoc) => {
     setLocalidadLoteImportacion(nuevaLoc);
     setElementosLeidos(prev => prev.map(item => ({ ...item, localidad: nuevaLoc })));
-  };
-
-  const cambiarLocalidadPuntoIndividual = (idPunto, nuevaLoc) => {
-    setElementosLeidos(prev => prev.map(item => item.id === idPunto ? { ...item, localidad: nuevaLoc } : item));
   };
 
   // --- LÓGICA DE IMPORTACIÓN ROBUSTA CON FILTRADO DE DUPLICADOS ---
@@ -78,10 +91,12 @@ function GestionKMZ() {
         if (resVerificacion.ok) {
           const data = await resVerificacion.json().catch(() => ({}));
           if (data.yaExiste) {
+            setElementosLeidos([]);
+            setNombreArchivo('');
+            if (fileInputRef.current) fileInputRef.current.value = '';
             setTipoMensaje('error');
             setMensaje('Este archivo ya se leyó anteriormente y sus elementos ya están registrados.');
             setCargando(false);
-            limpiarSeleccion();
             return;
           }
         }
@@ -206,9 +221,11 @@ function GestionKMZ() {
       }
     } catch (error) {
       console.error('Error al procesar el archivo:', error);
+      setElementosLeidos([]);
+      setNombreArchivo('');
+      if (fileInputRef.current) fileInputRef.current.value = '';
       setTipoMensaje('error');
       setMensaje(`Error al leer el archivo: ${error.message || error}`);
-      limpiarSeleccion();
     } finally {
       setCargando(false);
     }
@@ -252,7 +269,7 @@ function GestionKMZ() {
       let ultimoPunto = null;
 
       for (const item of elementosLeidos) {
-        const localidadBD = normalizarLocalidadBD(item.localidad || localidadLoteImportacion);
+        const localidadBD = normalizarLocalidadBD(localidadLoteImportacion);
         let endpoint = 'https://sigra-zero.onrender.com/api/red/postes';
         let bodyData = {
           codigo: item.nombre,
@@ -467,6 +484,8 @@ function GestionKMZ() {
     }
   };
 
+  const localidadInfoActual = CATALOGO_LOCALIDADES.find(l => l.codigo === localidadLoteImportacion);
+
   return (
     <div style={{ padding: '24px 32px', backgroundColor: '#f8fafc', height: '100%', boxSizing: 'border-box', overflowY: 'auto', fontFamily: 'Segoe UI, sans-serif' }}>
       <div style={{ marginBottom: '16px' }}>
@@ -534,23 +553,32 @@ function GestionKMZ() {
           {cargando && <p style={{ marginTop: '15px', fontWeight: '600', color: '#16a34a' }}>Procesando archivo...</p>}
           
           {mensaje && (
-            <p style={{ marginTop: '15px', color: tipoMensaje === 'error' ? '#dc2626' : '#16a34a', fontWeight: '700' }}>
+            <div style={{
+              marginTop: '15px',
+              padding: '10px 14px',
+              borderRadius: '6px',
+              backgroundColor: tipoMensaje === 'error' ? '#fee2e2' : '#dcfce7',
+              border: `1px solid ${tipoMensaje === 'error' ? '#fecaca' : '#bbf7d0'}`,
+              color: tipoMensaje === 'error' ? '#dc2626' : '#15803d',
+              fontSize: '0.84rem',
+              fontWeight: '700'
+            }}>
               {mensaje}
-            </p>
+            </div>
           )}
 
           {elementosLeidos.length > 0 && (
             <div style={{ marginTop: '24px' }}>
-              {/* Selector de Localidad / Barrio para todo el lote a importar */}
+              {/* Selector único de Localidad / Barrio aplicado automáticamente */}
               <div style={{ marginBottom: '16px', backgroundColor: '#ffffff', padding: '14px 16px', borderRadius: '8px', border: '1px solid #e2e8f0', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '12px' }}>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '10px', flexWrap: 'wrap' }}>
                   <label style={{ fontSize: '0.82rem', color: '#0369a1', fontWeight: '700' }}>
-                    Asignar Localidad / Barrio a todo el archivo:
+                    Localidad / Barrio del archivo:
                   </label>
                   <select
                     value={localidadLoteImportacion}
                     onChange={(e) => cambiarLocalidadTodoElLote(e.target.value)}
-                    style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', fontWeight: '600', fontSize: '0.82rem', color: '#0f172a' }}
+                    style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid #cbd5e1', backgroundColor: '#ffffff', fontWeight: '600', fontSize: '0.82rem', color: '#0f172a', cursor: 'pointer' }}
                   >
                     {CATALOGO_LOCALIDADES.map((loc) => (
                       <option key={loc.codigo} value={loc.codigo}>
@@ -596,17 +624,12 @@ function GestionKMZ() {
                         </span>
                       </td>
                       <td style={{ padding: '12px 16px' }}>
-                        <select
-                          value={punto.localidad || localidadLoteImportacion}
-                          onChange={(e) => cambiarLocalidadPuntoIndividual(punto.id, e.target.value)}
-                          style={{ padding: '4px 8px', borderRadius: '4px', border: '1px solid #bae6fd', backgroundColor: '#e0f2fe', color: '#0369a1', fontSize: '0.75rem', fontWeight: '700', cursor: 'pointer' }}
+                        <span
+                          title={localidadInfoActual ? localidadInfoActual.nombre : localidadLoteImportacion}
+                          style={{ backgroundColor: '#e0f2fe', color: '#0369a1', padding: '4px 10px', borderRadius: '4px', fontSize: '0.75rem', fontWeight: '700' }}
                         >
-                          {CATALOGO_LOCALIDADES.map((loc) => (
-                            <option key={loc.codigo} value={loc.codigo}>
-                              {loc.nombre}
-                            </option>
-                          ))}
-                        </select>
+                          {localidadLoteImportacion}
+                        </span>
                       </td>
                       <td style={{ padding: '12px 16px', color: '#334155' }}>{punto.latitud}</td>
                       <td style={{ padding: '12px 16px', color: '#334155' }}>{punto.longitud}</td>
@@ -627,7 +650,7 @@ function GestionKMZ() {
                 <button
                   onClick={limpiarSeleccion}
                   style={{
-                    backgroundColor: '#dc2626',
+                    backgroundColor: '#64748b',
                     color: '#ffffff',
                     border: 'none',
                     padding: '10px 20px',
@@ -637,7 +660,7 @@ function GestionKMZ() {
                     cursor: 'pointer'
                   }}
                 >
-                  Eliminar
+                  Cancelar carga
                 </button>
               </div>
             </div>
@@ -649,7 +672,20 @@ function GestionKMZ() {
       {pestanaActiva === 'exportacion' && (
         <div style={{ marginTop: '20px' }}>
           {cargandoExportacion && <p style={{ fontWeight: '600', color: '#16a34a' }}>Cargando elementos registrados...</p>}
-          {mensajeExportacion && <p style={{ color: '#dc2626', fontWeight: '700' }}>{mensajeExportacion}</p>}
+          {mensajeExportacion && (
+            <div style={{
+              marginBottom: '14px',
+              padding: '10px 14px',
+              borderRadius: '6px',
+              backgroundColor: '#fee2e2',
+              border: '1px solid #fecaca',
+              color: '#dc2626',
+              fontSize: '0.84rem',
+              fontWeight: '700'
+            }}>
+              {mensajeExportacion}
+            </div>
+          )}
 
           {!cargandoExportacion && (
             <div>
@@ -677,7 +713,7 @@ function GestionKMZ() {
                     onClick={() => setFiltroBusquedaExportacion('')}
                     style={{ backgroundColor: '#e2e8f0', color: '#334155', border: 'none', padding: '7px 12px', borderRadius: '6px', fontSize: '0.78rem', fontWeight: '600', cursor: 'pointer' }}
                   >
-                    Limpiar
+                    Quitar filtro
                   </button>
                 )}
               </div>
